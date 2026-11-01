@@ -2,11 +2,12 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import shutil
 import sys
 import unicodedata
 from collections import Counter
-from collections.abc import Mapping, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from pathlib import Path, PurePosixPath
 from typing import TextIO
 
@@ -23,9 +24,17 @@ from wpsync.config import (
     validate_environment_name,
     validate_profile_name,
 )
-from wpsync.documents import POSTS_DIR, DocumentError, LocalDocument, scan_documents
-from wpsync.posts import PostStatus, PostSummary, RemoteState
+from wpsync.documents import (
+    POSTS_DIR,
+    Document,
+    DocumentError,
+    LocalDocument,
+    scan_documents,
+    write_document,
+)
+from wpsync.posts import Post, PostStatus, PostSummary, RemoteState
 from wpsync.pull import Puller
+from wpsync.push import Pusher
 from wpsync.state import StateError, read_media, read_records
 from wpsync.sync import Action, DiffEntry, SelectionError, compare, select
 from wpsync.wordpress.client import WordPressClient, WordPressError, discover_api_root
@@ -38,13 +47,26 @@ COMMANDS = (
     "root",
     "profile",
     "profiles",
+    "create",
     "ls",
     "show",
     "diff",
     "pull",
+    "push",
 )
 PROFILE_AWARE_COMMANDS = frozenset(
-    {"map", "remove", "root", "profile", "ls", "show", "diff", "pull"}
+    {
+        "map",
+        "remove",
+        "root",
+        "profile",
+        "create",
+        "ls",
+        "show",
+        "diff",
+        "pull",
+        "push",
+    }
 )
 NO_POSTS = "No posts here yet. Run wpsync pull, or add Markdown files under posts/."
 RESET = "\033[0m"
@@ -249,6 +271,29 @@ def build_parser() -> argparse.ArgumentParser:
         description="List profiles; * marks the one containing this directory.",
     )
 
+    create = subparsers.add_parser(
+        "create",
+        help="start a new post file",
+        usage=(
+            "wpsync create TITLE [-s SLUG] [-f FILE]\n"
+            "       wpsync PROFILE create TITLE [-s SLUG] [-f FILE]"
+        ),
+        description=(
+            "Start a private post under posts/. Set its status to public when push "
+            "should publish it."
+        ),
+    )
+    create.add_argument("title", metavar="TITLE", help="the post's title")
+    create.add_argument(
+        "-s", "--slug", help="the post's address; WordPress assigns one when omitted"
+    )
+    create.add_argument(
+        "-f",
+        "--file",
+        metavar="FILE",
+        help="file name under posts/; made from the slug or title when omitted",
+    )
+
     ls = subparsers.add_parser(
         "ls",
         help="list local posts and how many issues each has",
@@ -291,6 +336,24 @@ def build_parser() -> argparse.ArgumentParser:
     )
     diff.add_argument(
         "-a", "--all", action="store_true", help="also show unchanged posts"
+    )
+
+    push = subparsers.add_parser(
+        "push",
+        help="send local posts to the blog",
+        usage="wpsync push [POST] [-y]\n       wpsync PROFILE push [POST] [-y]",
+        description=(
+            "Create and update posts on the blog from changed local files. Publishes "
+            "public posts and never sends private ones, except to turn a published "
+            "post that became private into a draft. POST is a post ID, slug, title, "
+            "or file."
+        ),
+    )
+    push.add_argument(
+        "post", nargs="?", metavar="POST", help="one post; all when omitted"
+    )
+    push.add_argument(
+        "-y", "--yes", action="store_true", help="answer yes to every question"
     )
 
     pull = subparsers.add_parser(
@@ -504,7 +567,7 @@ class _LazyRemote:
         self.session = session
         self.client: WordPressClient | None = None
 
-    def _connect(self) -> WordPressClient:
+    def connect(self) -> WordPressClient:
         if self.client is None:
             self.client = WordPressClient(
                 self.profile.api_root,
@@ -515,10 +578,10 @@ class _LazyRemote:
         return self.client
 
     def post_states(self, ids: list[str]) -> dict[str, RemoteState]:
-        return self._connect().post_states(ids)
+        return self.connect().post_states(ids)
 
     def post_summaries(self) -> list[PostSummary]:
-        return self._connect().post_summaries()
+        return self.connect().post_summaries()
 
     def close(self) -> None:
         if self.client is not None:
@@ -531,6 +594,37 @@ def _profile_root(
     _, profile = _resolve_profile(arguments, session.store.load())
     base = profile.local_root if arguments.profile_prefix else Path.cwd().resolve()
     return profile, base
+
+
+def _create(arguments: argparse.Namespace, session: _Session) -> str:
+    profile, _ = _profile_root(arguments, session)
+    root = profile.local_root
+    slug = arguments.slug or ""
+    if slug:
+        users = [
+            item.path
+            for item in scan_documents(root)
+            if item.document.post.slug == slug
+        ]
+        if users:
+            raise SelectionError(f"slug '{slug}' is used by {users[0]}")
+    relative = _new_file(arguments.file or slug or arguments.title)
+    path = root / relative
+    if path.exists():
+        raise SelectionError(f"{relative} already exists; use --file to name another")
+    write_document(path, Document(None, Post(title=arguments.title, slug=slug)))
+    return f"Created {relative} (private; set status: public to publish it)."
+
+
+def _new_file(name: str) -> PurePosixPath:
+    """A file under the posts folder from a chosen name or from a title."""
+    stem = name.removesuffix(".md")
+    if "/" not in stem:
+        stem = re.sub(r"[^\w.-]+", "-", stem.casefold()).strip("-.")
+    relative = PurePosixPath(POSTS_DIR, f"{stem}.md")
+    if not stem or ".." in relative.parts or PurePosixPath(stem).is_absolute():
+        raise SelectionError(f"'{name}' does not make a file name; use --file")
+    return relative
 
 
 def _ls(arguments: argparse.Namespace, session: _Session) -> str:
@@ -696,15 +790,7 @@ def _pull_target(
     return None, selector
 
 
-def _pull(arguments: argparse.Namespace, session: _Session) -> str:
-    profile, base = _profile_root(arguments, session)
-    root = profile.local_root
-    yes = arguments.yes
-    documents = scan_documents(root)
-    ids, slug = _pull_target(arguments.post, documents, root, base)
-    records = read_records(root, profile.api_root)
-    color = _use_color(session.stdout, session.environ)
-
+def _confirmer(session: _Session, yes: bool) -> Callable[[str], bool]:
     def confirm(question: str) -> bool:
         # Without a terminal nobody can answer, so the question counts as No.
         if yes:
@@ -712,8 +798,25 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> str:
         interactive = getattr(session.stdin, "isatty", lambda: False)()
         return interactive and session.confirm(f"{question} [y/N] ", default=False)
 
+    return confirm
+
+
+def _reporter(session: _Session) -> Callable[[DiffEntry], None]:
+    color = _use_color(session.stdout, session.environ)
+
     def report(entry: DiffEntry) -> None:
         print(_entry_line(entry, color, sides=False), file=session.stdout, flush=True)
+
+    return report
+
+
+def _pull(arguments: argparse.Namespace, session: _Session) -> str:
+    profile, base = _profile_root(arguments, session)
+    root = profile.local_root
+    yes = arguments.yes
+    documents = scan_documents(root)
+    ids, slug = _pull_target(arguments.post, documents, root, base)
+    records = read_records(root, profile.api_root)
 
     client = WordPressClient(
         profile.api_root, profile.username, session.password(profile), session.transport
@@ -731,8 +834,8 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> str:
             documents,
             records,
             read_media(root, profile.api_root),
-            confirm,
-            report,
+            _confirmer(session, yes),
+            _reporter(session),
         )
         result = puller.pull(ids=ids, slug=slug)
     finally:
@@ -744,6 +847,49 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> str:
     return summary
 
 
+def _push(arguments: argparse.Namespace, session: _Session) -> str:
+    profile, base = _profile_root(arguments, session)
+    root = profile.local_root
+    records = read_records(root, profile.api_root)
+    selection = select(
+        arguments.post, scan_documents(root), records, root=root, base=base
+    )
+    lazy = _LazyRemote(profile, session)
+    opened: list[WordPressRemote] = []
+
+    def connect() -> WordPressRemote:
+        client = lazy.connect()
+        account = _sign_in(client, profile)
+        # Until something is synced, say who signed in and what limits the account.
+        if not records:
+            print("\n".join(account), file=session.stdout, flush=True)
+        opened.append(WordPressRemote(client, session.transport))
+        return opened[0]
+
+    try:
+        plan = compare(selection, lazy)
+        for note in plan.notes:
+            print(f"Note: {note}", file=session.stdout, flush=True)
+        pusher = Pusher(
+            root,
+            profile.api_root,
+            connect,
+            records,
+            read_media(root, profile.api_root),
+            _confirmer(session, arguments.yes),
+            _reporter(session),
+        )
+        result = pusher.push(plan.entries)
+    finally:
+        for remote in opened:
+            remote.close()
+        lazy.close()
+    summary = result.summary()
+    if result.declined and not arguments.yes:
+        summary += " Rerun with --yes to accept the skipped changes."
+    return summary
+
+
 HANDLERS = {
     "init": _init,
     "map": _map,
@@ -751,10 +897,12 @@ HANDLERS = {
     "root": _root,
     "profile": _profile,
     "profiles": _profiles,
+    "create": _create,
     "ls": _ls,
     "show": _show,
     "diff": _diff,
     "pull": _pull,
+    "push": _push,
 }
 
 

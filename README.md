@@ -5,8 +5,8 @@ Markdown files: map a folder to a blog, pull its posts, edit them in any
 editor, preview the differences, and push the changes back. WordPress is the
 first supported platform.
 
-WPSync is pre-alpha software. Profiles, pull, and diff work today; push is in
-progress (see `TODO.md`).
+WPSync is pre-alpha software. Profiles, pull, diff, and push work today; see
+`TODO.md` for what remains.
 
 ## Installation
 
@@ -141,6 +141,30 @@ it writes its own fields in the order above, sorts category and tag names, and
 leaves other entries and their comments unchanged. Two files with the same `id`
 are an error.
 
+## Starting a post
+
+`create` starts a post file under `posts/`, named after the title unless you
+choose otherwise:
+
+```console
+wpsync create "Hello, World!"            # posts/hello-world.md
+wpsync create "Hello" -s hello-again     # choose the slug, and the file follows it
+wpsync create "Hello" -f drafts/hello    # posts/drafts/hello.md
+```
+
+```markdown
+---
+title: Hello, World!
+status: private
+categories: []
+tags: []
+---
+```
+
+A new post is private, so nothing is published until you set `status: public`
+and run `push`. Without a slug, WordPress assigns one when the post is created.
+`create` never overwrites a file and only touches local files.
+
 ## Pulling posts
 
 `pull` brings the blog's posts into the profile folder: each post becomes
@@ -189,6 +213,50 @@ Pull never loses local work:
 
 Dates are written in the blog's time zone. Images placed inside a line of text,
 rather than on their own, keep their WordPress address and are not downloaded.
+
+## Pushing posts
+
+`push` sends changed local files to the blog. Run `diff` first to see what it
+will do; both come from the same plan.
+
+```console
+wpsync push          # every post
+wpsync push hello    # one post, by ID, slug, title, or file
+wpsync push -y       # answer yes to every question
+```
+
+```text
++  170  posts/hello-world.md  1 image; https://example.com/hello-world/
+~  145  posts/release-notes.md
+?  150  posts/about.md  content; also changed on WordPress since the last sync
+Pushed 2 posts (1 new, 1 updated), 1 image; 1 skipped. Rerun with --yes to accept the skipped changes.
+```
+
+- A public file without an `id` creates a post. Push then writes the post's `id`,
+  slug, date, categories, and tags into the file, including anything WordPress
+  chose, such as a default category.
+- A changed file updates only the side that changed: editing the header never
+  replaces the post's content.
+- A private file is never sent, except that a published post made private becomes
+  a draft. Its ID, comments, and address are kept, and edits made in the meantime
+  are sent when it is made public again.
+- Local images are uploaded to the media library once and sent as WordPress image
+  markup. An image file you replace is uploaded again. Sources are relative to the
+  profile folder, as in `images/photo.png`.
+- Push never deletes anything on the blog.
+
+Push asks first, defaulting to no, before it would:
+
+- replace a post that has the same slug as a new file, or one this folder never
+  synced. Declining creates nothing, since WordPress would change the slug.
+- create a second post with the same title.
+- replace a post that also changed on WordPress.
+- turn a block-editor post into plain HTML.
+- create categories or tags the blog does not have.
+
+Without a terminal, every question counts as no. If WordPress stores different
+content than it was sent, usually because the account lacks `unfiltered_html`, the
+post's line says so.
 
 ## Seeing what changed
 

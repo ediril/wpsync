@@ -1,13 +1,7 @@
 # Work Queue
 
-- [ ] `push`: create and update posts with changed fields only, slug and
-  title checks before creating a post (see the matching decision), writing the
-  slug WordPress assigns back into the file, conflict and format-change
-  prompts, missing-term prompts, local image upload (a media row with no local
-  file is a missing image: send its library markup, upload nothing), and
-  `--yes`. Publish public posts, skip private ones, and turn a published post
-  that became private into a draft. Add `diff -p POST` to show the text difference push
-  would make, comparing the file with the current post converted to Markdown.
+- [ ] `diff -p POST`: show the text difference push would make, comparing the
+  file with the current post converted to Markdown.
 - [ ] Remote deletion command that moves a post to the WordPress trash.
 - [ ] Characterize against the user's real blogs: `init` and first-pull
   sign-in, read-only pull and diff first, then push to a blog the user

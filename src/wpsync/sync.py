@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import difflib
 from collections.abc import Sequence
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Generic, Protocol, TypeVar
@@ -131,6 +131,20 @@ class Action(StrEnum):
 
 
 @dataclass(frozen=True)
+class PushStep:
+    """What a push does for one post."""
+
+    document: LocalDocument
+    target: str | None = None
+    """The post to update; a new post is created when None."""
+    content: bool = True
+    fields: bool = True
+    unpublish: bool = False
+    question: str | None = None
+    """What to ask first, for anything that could overwrite or duplicate a post."""
+
+
+@dataclass(frozen=True)
 class DiffEntry:
     action: Action
     side: str
@@ -138,6 +152,8 @@ class DiffEntry:
     post_id: str | None
     path: PurePosixPath
     detail: str = ""
+    step: PushStep | None = None
+    """None when a push leaves the post alone."""
 
 
 @dataclass(frozen=True)
@@ -236,6 +252,11 @@ def compare(selection: Selection, remote: Remote) -> Diff:
                 )
             )
         elif state.fingerprint != record.remote_fingerprint:
+            step = _update_step(document, post_id, changes, unpublish)
+            question = (
+                f"#{post_id} {path} changed locally and on WordPress. "
+                "Replace WordPress's version with your file?"
+            )
             entries.append(
                 DiffEntry(
                     Action.CONFLICT,
@@ -243,6 +264,7 @@ def compare(selection: Selection, remote: Remote) -> Diff:
                     post_id,
                     path,
                     f"{detail}; also changed on WordPress since the last sync",
+                    replace(step, question=question),
                 )
             )
         else:
@@ -252,7 +274,8 @@ def compare(selection: Selection, remote: Remote) -> Diff:
                 and state.format is ContentFormat.BLOCKS
             ):
                 detail += "; block post becomes plain HTML on push"
-            entries.append(DiffEntry(Action.CHANGED, "l", post_id, path, detail))
+            step = _update_step(document, post_id, changes, unpublish)
+            entries.append(DiffEntry(Action.CHANGED, "l", post_id, path, detail, step))
     for document in unlinked:
         post_id = document.document.post_id
         exists = post_id in states
@@ -261,17 +284,36 @@ def compare(selection: Selection, remote: Remote) -> Diff:
             if exists
             else "linked to a post that is not on WordPress"
         )
-        entries.append(
-            DiffEntry(
-                Action.CONFLICT, "", post_id, PurePosixPath(document.path), detail
+        path = PurePosixPath(document.path)
+        step = None
+        if exists:
+            question = (
+                f"{path} has id {post_id} but was never synced here. "
+                "Replace that post with your file?"
             )
-        )
+            step = PushStep(document, target=post_id, question=question)
+        entries.append(DiffEntry(Action.CONFLICT, "", post_id, path, detail, step))
     if new:
         summaries = remote.post_summaries()
         for document in new:
             entries.append(_new_entry(document, summaries))
     entries.sort(key=lambda entry: str(entry.path))
     return Diff(entries, notes)
+
+
+def _update_step(
+    document: LocalDocument, post_id: str, changes: list[str], unpublish: bool
+) -> PushStep:
+    if unpublish:
+        return PushStep(
+            document, target=post_id, content=False, fields=False, unpublish=True
+        )
+    return PushStep(
+        document,
+        target=post_id,
+        content="content" in changes,
+        fields="details" in changes,
+    )
 
 
 def _new_entry(document: LocalDocument, summaries: Sequence[PostSummary]) -> DiffEntry:
@@ -284,8 +326,17 @@ def _new_entry(document: LocalDocument, summaries: Sequence[PostSummary]) -> Dif
         )
     if match.post is not None:
         detail = f"same slug as #{match.post.id} {match.post.title!r}"
-        return DiffEntry(Action.CONFLICT, "l", None, path, detail)
+        question = (
+            f"{path} has the same slug as #{match.post.id} {match.post.title!r}. "
+            "Replace that post with your file?"
+        )
+        step = PushStep(document, target=match.post.id, question=question)
+        return DiffEntry(Action.CONFLICT, "l", None, path, detail, step)
     detail = "new post"
+    question = None
     if match.same_title:
-        detail += "; same title as " + ", ".join(f"#{p.id}" for p in match.same_title)
-    return DiffEntry(Action.NEW, "l", None, path, detail)
+        listed = ", ".join(f"#{p.id}" for p in match.same_title)
+        detail += f"; same title as {listed}"
+        question = f"{path} has the same title as {listed}. Create another post?"
+    step = PushStep(document, question=question)
+    return DiffEntry(Action.NEW, "l", None, path, detail, step)

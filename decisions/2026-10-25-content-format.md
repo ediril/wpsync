@@ -60,9 +60,16 @@ post is saved. An image from the media library is rendered as WordPress's image
 markup (`<figure class="wp-block-image size-large">` with `wp-image-ID`), using
 the media ID and size recorded in the media table; an image title becomes its
 caption. The local Markdown keeps the local path. Images with remote URLs are
-sent as plain `<img>` elements. An embeddable URL alone in a paragraph is sent
+sent as plain `<img>` elements. Image sources are relative to the profile
+folder, and an image is uploaded again only when its file no longer matches the
+checksum in the media table. A media row with no local file is an image missing
+from the blog: push sends its library markup and uploads nothing. An embeddable URL alone in a paragraph is sent
 as that bare URL, so WordPress's oEmbed support renders the player; WPSync does
 not generate iframes for embeds.
+
+After a post is saved, push compares the content WordPress stored with what it
+sent, through the display model below, and reports a difference, because filters
+such as `unfiltered_html` can change a post without an error.
 
 ### Pull
 

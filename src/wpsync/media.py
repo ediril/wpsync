@@ -81,6 +81,7 @@ class MediaLibrary:
 
     def add(self, record: MediaRecord) -> None:
         self.by_path[record.path] = record
+        self.by_url[record.url] = record.path
 
     def at_url(self, url: str) -> MediaRecord:
         return self.by_path[self.by_url[url]]

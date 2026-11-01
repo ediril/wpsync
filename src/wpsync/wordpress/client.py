@@ -150,6 +150,16 @@ class WordPressClient:
             raise WordPressError(_error_message(response))
         return response
 
+    def post(
+        self, route: str, params: dict[str, Any] | None = None, **options: Any
+    ) -> httpx.Response:
+        response = request(
+            self.http, "POST", route_url(self.api_root, route, params), **options
+        )
+        if response.is_error:
+            raise WordPressError(_error_message(response))
+        return response
+
     def get_all(self, route: str, params: dict[str, Any]) -> Iterator[Any]:
         page = 1
         while True:
@@ -199,7 +209,10 @@ class WordPressClient:
 
     def term_names(self, taxonomy: str) -> dict[int, str]:
         terms = self.get_all(f"wp/v2/{taxonomy}", {"_fields": "id,name"})
-        return {term["id"]: term["name"] for term in terms}
+        return {term["id"]: html.unescape(term["name"]) for term in terms}
+
+    def create_term(self, taxonomy: str, name: str) -> int:
+        return self.post(f"wp/v2/{taxonomy}", json={"name": name}).json()["id"]
 
     def site_timezone(self) -> tzinfo:
         """The time zone the site displays dates in."""

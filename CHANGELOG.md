@@ -44,6 +44,13 @@
   other than an image, is reported, and the post still converts. Later pulls
   add the file if the server has it again.
   Iframes showing uploaded files are checked too.
+- `create TITLE [-s SLUG] [-f FILE]` starts a private post file under `posts/`.
+- `push [POST]` creates and updates posts from changed files, sending only the
+  content or the header fields that changed. It writes what WordPress assigned
+  back into new files, uploads local images, turns a published post made private
+  into a draft, and asks before replacing a matched or remotely changed post,
+  duplicating a title, converting a block post, or creating terms. It never
+  deletes anything.
 - `scripts/publish.sh [--prepare]` builds, checks, and publishes releases to
   PyPI.
 

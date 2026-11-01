@@ -2,15 +2,23 @@
 
 from __future__ import annotations
 
+import mimetypes
 import re
-from datetime import tzinfo
+from datetime import UTC, tzinfo
 from typing import Any
-from urllib.parse import unquote
+from urllib.parse import quote, unquote
 
 import httpx
 
-from wpsync.media import Media, MissingImage
-from wpsync.posts import Conversion, FetchedPost, Post
+from wpsync.media import Media, MediaImage, MissingImage
+from wpsync.posts import (
+    Conversion,
+    FetchedPost,
+    Post,
+    PostStatus,
+    PostSummary,
+    RemoteState,
+)
 from wpsync.wordpress.client import (
     FINGERPRINT_FIELDS,
     HEADERS,
@@ -23,7 +31,7 @@ from wpsync.wordpress.client import (
     remote_state,
     request,
 )
-from wpsync.wordpress.content import to_markdown
+from wpsync.wordpress.content import render_html, same_display, to_markdown
 
 PULL_FIELDS = FINGERPRINT_FIELDS + ",generated_slug,link"
 
@@ -77,6 +85,86 @@ class WordPressRemote:
         if response.is_error:
             raise WordPressError(f"could not check {url} (HTTP {response.status_code})")
         return True
+
+    def post_states(self, ids: list[str]) -> dict[str, RemoteState]:
+        return self.client.post_states(ids)
+
+    def post_summaries(self) -> list[PostSummary]:
+        return self.client.post_summaries()
+
+    def render(self, markdown: str, media: Media) -> str:
+        return render_html(markdown, media)
+
+    def upload(self, name: str, data: bytes) -> MediaImage:
+        media_type = mimetypes.guess_type(name)[0] or "application/octet-stream"
+        headers = {
+            "Content-Type": media_type,
+            "Content-Disposition": f'attachment; filename="{quote(name)}"',
+        }
+        image = self.client.post("wp/v2/media", content=data, headers=headers).json()
+        large = image.get("media_details", {}).get("sizes", {}).get("large")
+        if large:
+            return MediaImage(str(image["id"]), large["source_url"], "large")
+        return MediaImage(str(image["id"]), image["source_url"], "full")
+
+    def missing_terms(self, post: Post) -> list[str]:
+        return [
+            f"{label} '{name}'"
+            for taxonomy, label, names in (
+                ("categories", "category", post.categories),
+                ("tags", "tag", post.tags),
+            )
+            for name in names
+            if self._term_id(taxonomy, name) is None
+        ]
+
+    def save(
+        self,
+        post_id: str | None,
+        post: Post,
+        content: str | None,
+        fields: bool,
+        unpublish: bool,
+    ) -> FetchedPost:
+        body: dict[str, Any] = {}
+        if content is not None:
+            body["content"] = content
+        if fields:
+            body["title"] = post.title
+            body["status"] = "publish" if post.status is PostStatus.PUBLIC else "draft"
+            body["categories"] = self._term_ids("categories", post.categories)
+            body["tags"] = self._term_ids("tags", post.tags)
+            if post.slug:
+                body["slug"] = post.slug
+            if post.date:
+                body["date_gmt"] = post.date.astimezone(UTC).strftime(
+                    "%Y-%m-%dT%H:%M:%S"
+                )
+        if unpublish:
+            body["status"] = "draft"
+        route = "wp/v2/posts" + (f"/{post_id}" if post_id else "")
+        params = {"context": "edit", "_fields": PULL_FIELDS}
+        return self._fetched(self.client.post(route, params, json=body).json())
+
+    def keeps_display(self, sent: str, stored: str) -> bool:
+        return same_display(sent, stored)
+
+    def _term_id(self, taxonomy: str, name: str) -> int | None:
+        wanted = name.casefold()
+        for term_id, term_name in self._term_names(taxonomy).items():
+            if term_name.casefold() == wanted:
+                return term_id
+        return None
+
+    def _term_ids(self, taxonomy: str, names: tuple[str, ...]) -> list[int]:
+        ids = []
+        for name in names:
+            term_id = self._term_id(taxonomy, name)
+            if term_id is None:
+                term_id = self.client.create_term(taxonomy, name)
+                self._term_names(taxonomy)[term_id] = name
+            ids.append(term_id)
+        return ids
 
     def _fetched(self, post: dict[str, Any]) -> FetchedPost:
         if self._timezone is None:

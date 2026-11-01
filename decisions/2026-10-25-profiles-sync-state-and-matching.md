@@ -78,12 +78,20 @@ checked against remote posts at push time:
   with the same title. Titles need not be unique.
 - Nothing matches: create a new post.
 
-A confirmed match writes the post ID into the file's frontmatter. When a file
-without a slug creates a post, the slug WordPress assigns is written into the
-file and the sync state. A file whose
-post ID this folder has never synchronized, such as one copied from elsewhere,
-is a conflict: push asks before updating that post. A first pull is therefore
-not required before push.
+A confirmed match writes the post ID into the file's frontmatter. When push sends
+a post's header fields, what WordPress decided (the ID, slug, date when the file
+has none, categories, and tags) is written into the file and the sync state, so
+the file reads as a pull would have written it. A file whose post ID this folder
+has never synchronized, such as one copied from elsewhere, is a conflict: push
+asks before updating that post. A first pull is therefore not required before
+push.
+
+`diff` and `push` share one plan: comparing a post produces both the line `diff`
+shows and the step `push` performs, including any question to ask. A push that
+stops between saving a post and recording it is safe to repeat, because the next
+push finds the post by its slug or title and asks. A body that push did not send,
+as when unpublishing, keeps its old checksum, so it is sent when the post is next
+made public.
 
 Pull applies the same rule in the other direction: a WordPress post with the
 same slug as a local file without a post ID is linked to it only after

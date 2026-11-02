@@ -16,11 +16,12 @@
 - [ ] `import apple-notes [-f FOLDER]...`: read Apple Notes' database (macOS,
   Full Disk Access) and write each note to `posts/apple-notes/<slug>.md` as a
   private post with an `apple-notes-id` header key, so importing again updates
-  the same file without touching wpsync's fields. A Python port of notemodo's
-  `noteslib` (gzip plus a small protobuf decoder for the note schema from the
-  MIT-licensed apple_cloud_notes_parser), kept in its own module that the sync
-  code never imports, and checked against real notes. Copies attachments into
-  `images/`.
+  the same file without touching wpsync's fields. If both the note and the file
+  changed since the last import, report the conflict and leave the file alone,
+  without asking. A Python port of notemodo's `noteslib` (gzip plus a small
+  protobuf decoder for the note schema from the MIT-licensed
+  apple_cloud_notes_parser), kept in its own module that the sync code never
+  imports, and checked against real notes. Copies attachments into `images/`.
 
 ## Backlog
 

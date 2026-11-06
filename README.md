@@ -221,7 +221,8 @@ will do; both come from the same plan.
 
 ```console
 wpsync push          # every post
-wpsync push hello    # one post, by ID, slug, title, or file
+wpsync push 123      # one post, by ID
+wpsync push hello    # one post, by slug, title, or file
 wpsync push -y       # answer yes to every question
 ```
 

@@ -313,26 +313,25 @@ def build_parser() -> argparse.ArgumentParser:
     show = subparsers.add_parser(
         "show",
         help="show one post's details and issues",
-        usage="wpsync show POST\n       wpsync PROFILE show POST",
+        usage="wpsync show ID|SLUG\n       wpsync PROFILE show ID|SLUG",
         description=(
             "Show a post's details and what is wrong with it, without contacting "
-            "the blog. POST is a post ID, slug, title, or file."
+            "the blog. A title or file also selects a post."
         ),
     )
-    show.add_argument("post", metavar="POST", help="the post")
+    show.add_argument("post", metavar="ID|SLUG", help="the post")
 
     diff = subparsers.add_parser(
         "diff",
         help="show what push would change",
-        usage="wpsync diff [POST] [-a]\n       wpsync PROFILE diff [POST] [-a]",
+        usage="wpsync diff [ID|SLUG] [-a]\n       wpsync PROFILE diff [ID|SLUG] [-a]",
         description=(
             "Show local changes and anything that would stop a push. Contacts the "
-            "blog only for changed or new posts. POST is a post ID, slug, title, or "
-            "file."
+            "blog only for changed or new posts. A title or file also selects a post."
         ),
     )
     diff.add_argument(
-        "post", nargs="?", metavar="POST", help="one post; all when omitted"
+        "post", nargs="?", metavar="ID|SLUG", help="one post; all when omitted"
     )
     diff.add_argument(
         "-a", "--all", action="store_true", help="also show unchanged posts"
@@ -341,16 +340,16 @@ def build_parser() -> argparse.ArgumentParser:
     push = subparsers.add_parser(
         "push",
         help="send local posts to the blog",
-        usage="wpsync push [POST] [-y]\n       wpsync PROFILE push [POST] [-y]",
+        usage="wpsync push [ID|SLUG] [-y]\n       wpsync PROFILE push [ID|SLUG] [-y]",
         description=(
             "Create and update posts on the blog from changed local files. Publishes "
             "public posts and never sends private ones, except to turn a published "
-            "post that became private into a draft. POST is a post ID, slug, title, "
-            "or file."
+            "post that became private into a draft. A title or file also selects a "
+            "post."
         ),
     )
     push.add_argument(
-        "post", nargs="?", metavar="POST", help="one post; all when omitted"
+        "post", nargs="?", metavar="ID|SLUG", help="one post; all when omitted"
     )
     push.add_argument(
         "-y", "--yes", action="store_true", help="answer yes to every question"
@@ -359,15 +358,15 @@ def build_parser() -> argparse.ArgumentParser:
     pull = subparsers.add_parser(
         "pull",
         help="bring posts from the blog into local files",
-        usage="wpsync pull [POST] [-y]\n       wpsync PROFILE pull [POST] [-y]",
+        usage="wpsync pull [ID|SLUG] [-y]\n       wpsync PROFILE pull [ID|SLUG] [-y]",
         description=(
             "Create and update local post files from the blog and download their "
-            "images. Local edits are never overwritten without asking. POST is a "
-            "post ID, slug, or file."
+            "images. Local edits are never overwritten without asking. A file also "
+            "selects a post."
         ),
     )
     pull.add_argument(
-        "post", nargs="?", metavar="POST", help="one post; all when omitted"
+        "post", nargs="?", metavar="ID|SLUG", help="one post; all when omitted"
     )
     pull.add_argument(
         "-y", "--yes", action="store_true", help="answer yes to every question"

@@ -203,9 +203,10 @@ Pull never loses local work:
   also changed on WordPress. Without a terminal, or when you answer no, the
   file is skipped.
 - A WordPress post with the same slug as a local file that has no `id` yet is
-  linked to that file only after you confirm, so pull does not create a
-  duplicate. A shared title alone does not link them, because titles need not
-  be unique.
+  linked to that file, so pull does not create a duplicate. If WordPress's
+  version would change the file's title, content, or status, or a date,
+  category, or tag the file sets, pull asks first. A shared title alone does
+  not link them, because titles need not be unique.
 - A file you deleted is not restored, and a post deleted on WordPress keeps its
   local file.
 - Header entries WPSync does not sync, such as `layout:`, are kept when a file

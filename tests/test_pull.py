@@ -139,6 +139,24 @@ def test_only_a_shared_slug_links_an_unlinked_file_to_a_remote_post(tmp_path, st
     assert (tmp_path / "posts/draft.md").read_text().startswith("---\nid: 2\n")
 
 
+def test_a_file_that_pull_would_only_fill_in_is_linked_without_asking(tmp_path, store):
+    wordpress = blog()
+    add_profile(store, "myblog", tmp_path)
+    path = tmp_path / "posts/draft.md"
+    write_document(path, Document(None, Post("Post 2", "post-2", body="Body 2")))
+
+    status, output, _ = pull(store, wordpress, "2")
+
+    assert output.splitlines()[1:] == [
+        "+  2  posts/draft.md",
+        "Pulled 1 post (1 linked).",
+    ]
+    assert path.read_text().startswith(
+        "---\nid: 2\ntitle: Post 2\nslug: post-2\ndate: 2026-01-03T"
+    )
+    assert "categories:\n- News\n" in path.read_text()
+
+
 def test_pull_never_deletes_or_restores_files(tmp_path, store):
     wordpress = blog()
     add_profile(store, "myblog", tmp_path)

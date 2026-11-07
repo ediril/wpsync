@@ -94,8 +94,14 @@ as when unpublishing, keeps its old checksum, so it is sent when the post is nex
 made public.
 
 Pull applies the same rule in the other direction: a WordPress post with the
-same slug as a local file without a post ID is linked to it only after
-confirmation, and a shared title alone does not link them.
+same slug as a local file without a post ID, or one whose ID a never-synced
+file already carries, is linked to that file, and a shared title alone does
+not link them. Pull asks first unless WordPress's version only fills in what
+the file leaves empty: the slug, date, categories, and tags. The title and
+content never count as empty, because a blank file that shares a slug is more
+likely meant as a new post, and linking it would let the next push replace the
+existing one. Linking a file that the pull would not change loses nothing, so
+asking would only be noise.
 
 ### Prompts
 
@@ -141,5 +147,6 @@ would otherwise ask.
 - Detecting WordPress-side changes to posts that are unchanged locally,
   except through `pull`.
 - Selecting several posts in one command; a command acts on one post or all.
-- Linking posts by title, or by slug without confirmation.
+- Linking posts by title, or by slug without confirmation when the pull
+  would change what the file says.
 - Permanent remote deletion.

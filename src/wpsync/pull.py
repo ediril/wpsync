@@ -19,7 +19,7 @@ from wpsync.documents import (
 )
 from wpsync.markup.markdown import image_sources
 from wpsync.media import Media, MediaLibrary, MissingImage
-from wpsync.posts import Conversion, FetchedPost, UnrepresentableContent
+from wpsync.posts import Conversion, FetchedPost, Post, UnrepresentableContent
 from wpsync.state import MediaRecord, PostRecord, write_state
 from wpsync.storage import write_atomic, write_text_atomic
 from wpsync.sync import Action, DiffEntry, SelectionError, match_post
@@ -221,27 +221,18 @@ class Puller:
 
     def _pull_unrecorded(self, post: FetchedPost, document: LocalDocument) -> None:
         path = PurePosixPath(document.path)
-        conversion = self._convert(post, path)
-        if conversion is None:
-            return
-        remote = replace(post.post, body=conversion.markdown.strip("\n"))
-        if remote == document.document.post:
-            for download in self.library.take_pending():
-                self.library.release(download)
-            self._record(post, path, document.document, [], [])
-            self._line(Action.UNCHANGED, post.id, path, "linked; already identical")
-            self.result.linked += 1
-            return
-        if not self.confirm(
+        question = (
             f"{path} has id {post.id} but was never synced here. "
             "Replace it with WordPress's version?"
-        ):
-            for download in self.library.take_pending():
-                self.library.release(download)
-            self._skip(post.id, path, "never synced here; your file is unchanged")
-            return
-        if self._write(post, path, document.document, Action.CHANGED, conversion):
-            self.result.linked += 1
+        )
+        self._link(
+            post,
+            path,
+            document.document,
+            Action.CHANGED,
+            question,
+            "never synced here; your file is unchanged",
+        )
 
     def _pull_new(self, post: FetchedPost) -> None:
         match = match_post(post.post, self.unlinked)
@@ -251,22 +242,56 @@ class Puller:
             return
         if match.post is not None:
             candidate = match.post
-            path = PurePosixPath(candidate.id)
-            if not self.confirm(
+            question = (
                 f"WordPress post #{post.id} {post.post.title!r} has the same slug "
-                f"as {path}. Link them and replace the file with WordPress's "
-                "version?"
+                f"as {candidate.id}. Link them and replace the file with "
+                "WordPress's version?"
+            )
+            if self._link(
+                post,
+                PurePosixPath(candidate.id),
+                candidate.document.document,
+                Action.NEW,
+                question,
+                "same slug as this file; not linked",
             ):
-                self._skip(post.id, path, "same slug as this file; not linked")
-                return
-            self.unlinked.remove(candidate)
-            if self._write(post, path, candidate.document.document, Action.NEW):
-                self.result.linked += 1
+                self.unlinked.remove(candidate)
             return
         path = self._new_path(post)
         self.taken.add(path)
         if self._write(post, path, Document(post.id, post.post), Action.NEW):
             self.result.new += 1
+
+    def _link(
+        self,
+        post: FetchedPost,
+        path: PurePosixPath,
+        document: Document,
+        action: Action,
+        question: str,
+        declined: str,
+    ) -> bool:
+        """Link a file to a post, asking only if WordPress's version changes it."""
+        conversion = self._convert(post, path)
+        if conversion is None:
+            return False
+        remote = replace(post.post, body=conversion.markdown.strip("\n"))
+        if document.post_id == post.id and remote == document.post:
+            for download in self.library.take_pending():
+                self.library.release(download)
+            self._record(post, path, document, [], [])
+            self._line(Action.UNCHANGED, post.id, path, "linked; already identical")
+            self.result.linked += 1
+            return True
+        if not _only_fills_in(document.post, remote) and not self.confirm(question):
+            for download in self.library.take_pending():
+                self.library.release(download)
+            self._skip(post.id, path, declined)
+            return False
+        if not self._write(post, path, document, action, conversion):
+            return False
+        self.result.linked += 1
+        return True
 
     def _new_path(self, post: FetchedPost) -> PurePosixPath:
         for name in (post.name, f"{post.name}-{post.id}"):
@@ -384,3 +409,19 @@ class Puller:
         detail: str = "",
     ) -> None:
         self.report(DiffEntry(action, "", post_id, path, detail))
+
+
+def _only_fills_in(local: Post, remote: Post) -> bool:
+    """Whether a post differs from a file only in fields the file leaves empty.
+
+    The title and content never count as empty: an untitled or blank file
+    sharing a slug with a post is more likely meant as a new post.
+    """
+    filled = replace(
+        local,
+        slug=local.slug or remote.slug,
+        date=local.date or remote.date,
+        categories=local.categories or remote.categories,
+        tags=local.tags or remote.tags,
+    )
+    return filled == remote

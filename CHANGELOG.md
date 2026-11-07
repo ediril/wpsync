@@ -27,19 +27,20 @@
   published post that became private into a draft. Pull writes published posts
   as public and drafts, scheduled, pending, and WordPress-private posts as
   private.
-- `diff [POST]` shows local changes in HLSync's notation, with the second
+- `diff [ID|SLUG]` shows local changes in HLSync's notation, with the second
   column marking the side that changed. It contacts the blog only for changed
   or new posts. A new file whose slug belongs to a post is a conflict, and a
   shared title is noted. Private posts are listed with `-a`, and a published
   post made private shows as `unpublish`. `ls` lists local posts by ID, title,
   file, and number of issues, fitting the terminal; `ls -l` puts each post's
-  file and address on the blog on their own lines. `show POST` gives one post's details and lists its
+  file and address on the blog on their own lines. `show ID|SLUG` gives one post's details and lists its
   issues, finding the post by ID, slug, file, or title.
-- `pull [POST]` brings posts into `posts/<slug>.md` and downloads the images
-  they display into `images/`. Edited files are replaced, and unlinked files
-  are linked, only after confirmation or `--yes`; pull never restores or
-  deletes local files. Titles are written as readers see them, so `&amp;` in a
-  stored title becomes `&`.
+- `pull [ID|SLUG]` brings posts into `posts/<slug>.md` and downloads the
+  images they display into `images/`. Edited files are replaced, and unlinked
+  files are linked with WordPress's changes, only after confirmation or
+  `--yes`. A file that WordPress's version would only fill in is linked without
+  asking. Pull never restores or deletes local files. Titles are written as
+  readers see them, so `&amp;` in a stored title becomes `&`.
   An image whose file is gone from the server, or that comes back as something
   other than an image, is reported, and the post still converts. Later pulls
   add the file if the server has it again.

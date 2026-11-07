@@ -143,18 +143,17 @@ are an error.
 
 ## Starting a post
 
-`create` starts a post file under `posts/`, named after the title unless you
-choose otherwise:
+`create` starts a post file under `posts/`. The title and slug can wait:
 
 ```console
-wpsync create "Hello, World!"            # posts/hello-world.md
-wpsync create "Hello" -s hello-again     # choose the slug, and the file follows it
-wpsync create "Hello" -f drafts/hello    # posts/drafts/hello.md
+wpsync create idea                             # posts/idea.md
+wpsync create drafts/hello -t "Hello, World!"  # posts/drafts/hello.md, with a title
+wpsync create hello -s hello-again             # choose the slug
 ```
 
 ```markdown
 ---
-title: Hello, World!
+title: ''
 status: private
 categories: []
 tags: []
@@ -162,8 +161,9 @@ tags: []
 ```
 
 A new post is private, so nothing is published until you set `status: public`
-and run `push`. Without a slug, WordPress assigns one when the post is created.
-`create` never overwrites a file and only touches local files.
+and run `push`. Push skips a post with no title. Without a slug, WordPress
+assigns one when the post is created. `create` never overwrites a file and only
+touches local files.
 
 ## Pulling posts
 
@@ -244,6 +244,7 @@ Pushed 2 posts (1 new, 1 updated), 1 image; 1 skipped. Rerun with --yes to accep
 - Local images are uploaded to the media library once and sent as WordPress image
   markup. An image file you replace is uploaded again. Sources are relative to the
   profile folder, as in `images/photo.png`.
+- A post without a title is skipped.
 - Push never deletes anything on the blog.
 
 Push asks first, defaulting to no, before it would:

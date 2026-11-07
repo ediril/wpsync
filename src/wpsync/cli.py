@@ -279,23 +279,18 @@ def build_parser() -> argparse.ArgumentParser:
         "create",
         help="start a new post file",
         usage=(
-            "wpsync create TITLE [-s SLUG] [-f FILE]\n"
-            "       wpsync PROFILE create TITLE [-s SLUG] [-f FILE]"
+            "wpsync create FILE [-t TITLE] [-s SLUG]\n"
+            "       wpsync PROFILE create FILE [-t TITLE] [-s SLUG]"
         ),
         description=(
             "Start a private post under posts/. Set its status to public when push "
-            "should publish it."
+            "should publish it; push needs a title by then."
         ),
     )
-    create.add_argument("title", metavar="TITLE", help="the post's title")
+    create.add_argument("file", metavar="FILE", help="file name under posts/")
+    create.add_argument("-t", "--title", default="", help="the post's title")
     create.add_argument(
         "-s", "--slug", help="the post's address; WordPress assigns one when omitted"
-    )
-    create.add_argument(
-        "-f",
-        "--file",
-        metavar="FILE",
-        help="file name under posts/; made from the slug or title when omitted",
     )
 
     ls = subparsers.add_parser(
@@ -612,22 +607,22 @@ def _create(arguments: argparse.Namespace, session: _Session) -> str:
         ]
         if users:
             raise SelectionError(f"slug '{slug}' is used by {users[0]}")
-    relative = _new_file(arguments.file or slug or arguments.title)
+    relative = _new_file(arguments.file)
     path = root / relative
     if path.exists():
-        raise SelectionError(f"{relative} already exists; use --file to name another")
+        raise SelectionError(f"{relative} already exists")
     write_document(path, Document(None, Post(title=arguments.title, slug=slug)))
     return f"Created {relative} (private; set status: public to publish it)."
 
 
 def _new_file(name: str) -> PurePosixPath:
-    """A file under the posts folder from a chosen name or from a title."""
+    """A file under the posts folder from a chosen name."""
     stem = name.removesuffix(".md")
     if "/" not in stem:
         stem = re.sub(r"[^\w.-]+", "-", stem.casefold()).strip("-.")
     relative = PurePosixPath(POSTS_DIR, f"{stem}.md")
     if not stem or ".." in relative.parts or PurePosixPath(stem).is_absolute():
-        raise SelectionError(f"'{name}' does not make a file name; use --file")
+        raise SelectionError(f"'{name}' does not make a file name")
     return relative
 
 

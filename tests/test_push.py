@@ -29,7 +29,7 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
     add_profile(store, "myblog", tmp_path)
 
     status, output, _ = invoke(
-        ["myblog", "create", "Hello, World!"], store, wordpress=wordpress, password=None
+        ["myblog", "create", "hello-world"], store, wordpress=wordpress, password=None
     )
     assert status == 0
     assert output == (
@@ -37,7 +37,7 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
     )
     path = tmp_path / "posts/hello-world.md"
     assert path.read_text() == (
-        "---\ntitle: Hello, World!\nstatus: private\ncategories: []\ntags: []\n---\n"
+        "---\ntitle: ''\nstatus: private\ncategories: []\ntags: []\n---\n"
     )
 
     _, output, _ = invoke(["myblog", "push"], store, wordpress=wordpress, password=None)
@@ -45,6 +45,14 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
     assert wordpress.requests == []
 
     path.write_text(path.read_text().replace("private", "public") + "\nFirst *post*.\n")
+    _, output, _ = run(store, wordpress, "push")
+    assert output.splitlines()[-2:] == [
+        "?  -  posts/hello-world.md  no title; push needs one",
+        "Nothing to push; 1 skipped.",
+    ]
+    assert wordpress.saved == []
+
+    path.write_text(path.read_text().replace("title: ''", "title: Hello, World!"))
     status, output, errors = run(store, wordpress, "push")
 
     assert (status, errors) == (0, "")
@@ -86,21 +94,22 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
     assert "URL:        https://blog.test/hello-world/" in output
 
 
-def test_create_takes_a_slug_and_file_and_never_overwrites(tmp_path, store):
+def test_create_takes_a_title_and_slug_and_never_overwrites(tmp_path, store):
     add_profile(store, "myblog", tmp_path)
 
     status, output, _ = invoke(
-        ["myblog", "create", "Long title", "-s", "short", "-f", "notes/a"],
+        ["myblog", "create", "notes/a", "-t", "Long title", "-s", "short"],
         store,
         password=None,
     )
     assert status == 0
-    assert "slug: short\n" in (tmp_path / "posts/notes/a.md").read_text()
+    text = (tmp_path / "posts/notes/a.md").read_text()
+    assert "title: Long title\nslug: short\n" in text
 
     for arguments, message in (
-        (["Other", "-s", "short"], "slug 'short' is used by posts/notes/a.md"),
-        (["Other", "-f", "notes/a.md"], "posts/notes/a.md already exists"),
-        (["Other", "-f", "../a"], "'../a' does not make a file name"),
+        (["other", "-s", "short"], "slug 'short' is used by posts/notes/a.md"),
+        (["notes/a.md"], "posts/notes/a.md already exists"),
+        (["../a"], "'../a' does not make a file name"),
         (["!!!"], "'!!!' does not make a file name"),
     ):
         status, _, errors = invoke(

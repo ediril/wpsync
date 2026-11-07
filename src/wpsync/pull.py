@@ -59,6 +59,8 @@ class PullResult:
 
     def summary(self) -> str:
         pulled = self.new + self.updated + self.linked
+        missing = self.missing_files
+        gone = f"{missing} file{'s' * (missing != 1)} missing from the blog"
         if not pulled and not self.skipped:
             images = self.images
             restored = f"Restored {images} image{'s' * (images != 1)}"
@@ -66,9 +68,8 @@ class PullResult:
             if self.changes_kept:
                 kept = self.changes_kept
                 notes.append(f"{kept} post{'s' * (kept != 1)} with local changes")
-            if self.missing_files:
-                missing = self.missing_files
-                notes.append(f"{missing} file{'s' * (missing != 1)} missing")
+            if missing:
+                notes.append(gone)
             return "; ".join(notes) + "."
         parts = [
             f"{count} {label}"
@@ -83,9 +84,8 @@ class PullResult:
         line += f" ({', '.join(parts)})" if parts else ""
         if self.images:
             line += f", {self.images} image{'s' * (self.images != 1)}"
-        if self.missing_files:
-            missing = self.missing_files
-            line += f"; {missing} file{'s' * (missing != 1)} missing"
+        if missing:
+            line += f"; {gone}"
         if self.skipped:
             line += f"; {self.skipped} skipped"
         if self.changes_kept:

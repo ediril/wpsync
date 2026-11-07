@@ -184,7 +184,7 @@ def test_a_missing_image_is_reported_and_the_post_still_converts(
     assert output.splitlines()[1:] == [
         f"+  1  posts/post-1.md  1 image; missing: {gone}",
         "+  2  posts/post-2.md",
-        "Pulled 2 posts (2 new), 1 image; 1 file missing.",
+        "Pulled 2 posts (2 new), 1 image; 1 file missing from the blog.",
     ]
     body = (tmp_path / "posts/post-1.md").read_text()
     assert (
@@ -215,7 +215,7 @@ def test_a_missing_image_stays_counted_until_a_pull_restores_it_under_your_edits
     _, output, _ = invoke(["myblog", "show", "1"], store, wordpress=wordpress)
     assert f"  missing file: {gone}" in output.splitlines()
     _, output, _ = pull(store, wordpress)
-    assert output == "Nothing to pull; 1 file missing.\n"
+    assert output == "Nothing to pull; 1 file missing from the blog.\n"
     assert issues() == "1"
 
     post = tmp_path / "posts/post-1.md"

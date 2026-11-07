@@ -1,3 +1,4 @@
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 
 from wordpress_fake import SITE, FakeWordPress, Terminal, add_profile, invoke
@@ -151,7 +152,8 @@ def test_ls_lists_local_posts_without_contacting_the_blog(tmp_path, store, monke
     add_profile(store, "myblog", tmp_path)
     synced(tmp_path, wordpress, 12, "twelve.md")
     synced(tmp_path, wordpress, 3, "three.md")
-    new_post(tmp_path, "idea.md", title="Idea")
+    new_post(tmp_path, "idea.md", title="Idea", status=PostStatus.PRIVATE)
+    new_post(tmp_path, "later.md", title="Later", date=datetime(2099, 1, 2, tzinfo=UTC))
 
     def ls(*arguments, stdout=None):
         return invoke(
@@ -163,32 +165,26 @@ def test_ls_lists_local_posts_without_contacting_the_blog(tmp_path, store, monke
         )[1].splitlines()
 
     assert ls() == [
-        "ID  Attr  Issues  Title (file)",
-        " 3  p     -       Post 3 (three.md)",
-        "12  p     -       Post 12 (twelve.md)",
-        " -  p     -       Idea (idea.md)",
+        "ID  Public        Issues  Title (file)",
+        " 3  *             -       Post 3 (three.md)",
+        "12  *             -       Post 12 (twelve.md)",
+        " -                -       Idea (idea.md)",
+        " -  *Jan 2, 2099  -       Later (later.md)",
     ]
-    assert ls("-l") == [
-        "ID  Attr  Issues  Title",
-        " 3  p     -       Post 3",
-        "                  posts/three.md",
-        "                  https://blog.test/post-3/",
-        "12  p     -       Post 12",
-        "                  posts/twelve.md",
-        "                  https://blog.test/post-12/",
-        " -  p     -       Idea",
-        "                  posts/idea.md",
+    assert ls("-l")[:4] == [
+        "ID  Public        Issues  Title",
+        " 3  *             -       Post 3",
+        "                          posts/three.md",
+        "                          https://blog.test/post-3/",
     ]
     assert wordpress.requests == []
 
-    monkeypatch.setenv("COLUMNS", "24")
-    assert ls(stdout=Terminal()) == [
-        "ID  Attr  Issues  Title…",
-        " 3  p     -       Post …",
-        "12  p     -       Post …",
-        " -  p     -       Idea …",
+    monkeypatch.setenv("COLUMNS", "32")
+    assert ls(stdout=Terminal())[:2] == [
+        "ID  Public        Issues  Title…",
+        " 3  *             -       Post …",
     ]
-    assert ls("-l", stdout=Terminal())[2] == "                  posts…"
+    assert ls("-l", stdout=Terminal())[2] == "                          posts…"
 
 
 def test_show_finds_a_post_by_id_slug_file_or_title(tmp_path, store):

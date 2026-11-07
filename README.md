@@ -267,9 +267,10 @@ letting them wrap:
 
 ```console
 $ wpsync ls
-ID  Attr  Issues  Title (file)
-67  p     2       Hurt (hurt.md)
- -  -     -       Idea (idea.md)
+ID  Public        Issues  Title (file)
+67  *             2       Hurt (hurt.md)
+ -                -       Idea (idea.md)
+ -  *Jan 1, 2029  -       Later (later.md)
 ```
 
 `wpsync ls -l` puts each post's file and its address on the blog, as of the last
@@ -278,14 +279,16 @@ which is never cut:
 
 ```console
 $ wpsync ls -l
-ID  Attr  Issues  Title
-67  p     2       Hurt
-                  posts/hurt.md
-                  https://blog.test/hurt/
+ID  Public  Issues  Title
+67  *       2       Hurt
+                    posts/hurt.md
+                    https://blog.test/hurt/
 ```
 
-`Attr` shows `p` for a public post. `Issues` counts what is wrong with a post;
-`show` says what, for one post chosen by ID, slug, file, or title:
+`Public` marks a public post with `*`, before its date if the post is scheduled
+and readers cannot see it yet; a private post has no mark. `Issues` counts what
+is wrong with a post; `show` says what, for one post chosen by ID, slug, file,
+or title:
 
 ```console
 $ wpsync show hurt

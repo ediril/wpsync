@@ -8,6 +8,7 @@ import sys
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import TextIO
 
@@ -87,7 +88,10 @@ LEGEND = (
     ("=  ", "unchanged (shown with -a)"),
     ("x l", "private; push never sends it (shown with -a)"),
 )
-LS_LEGEND = (("p", "Attr: public; push publishes it (- means private)"),)
+LS_LEGEND = (
+    ("*", "Public: push publishes it (blank means private)"),
+    ("*Jan 1, 2029", "Public: scheduled; the blog shows it from that date"),
+)
 
 
 class _Session:
@@ -554,7 +558,8 @@ def _legend(session: _Session) -> str:
     lines = ["Diff legend:"]
     lines.extend(f"  {_paint(marker, color)}  {meaning}" for marker, meaning in LEGEND)
     lines.append("ls legend:")
-    lines.extend(f"  {marker}  {meaning}" for marker, meaning in LS_LEGEND)
+    width = max(len(marker) for marker, _ in LS_LEGEND)
+    lines.extend(f"  {marker:<{width}}  {meaning}" for marker, meaning in LS_LEGEND)
     return "\n".join(lines)
 
 
@@ -638,29 +643,30 @@ def _ls(arguments: argparse.Namespace, session: _Session) -> str:
 
     records = read_records(profile.local_root, profile.api_root)
     heading = "Title" if arguments.long else "Title (file)"
-    rows = [("ID", "Attr", "Issues", heading)]
+    now = datetime.now(UTC)
+    rows = [("ID", "Public", "Issues", heading)]
     details: list[list[str]] = [[]]
     for item in sorted(documents, key=order):
         post = item.document.post
         post_id = item.document.post_id or "-"
         record = records.get(post_id)
-        attr = "p" if post.status is PostStatus.PUBLIC else "-"
+        public = _public(post, now)
         title = post.title or "(no title)"
         missing = record.missing_files if record else ()
         issues = str(len(missing)) if missing else "-"
         if arguments.long:
-            rows.append((post_id, attr, issues, title))
+            rows.append((post_id, public, issues, title))
             details.append([str(item.path), *([record.url] if record else [])])
         else:
             name = PurePosixPath(item.path).relative_to(POSTS_DIR)
-            rows.append((post_id, attr, issues, f"{title} ({name})"))
+            rows.append((post_id, public, issues, f"{title} ({name})"))
             details.append([])
     widths = [max(len(row[i]) for row in rows) for i in range(3)]
     indent = " " * (sum(widths) + 6)
     lines = []
-    for (post_id, attr, issues, title), extra in zip(rows, details, strict=True):
+    for (post_id, public, issues, title), extra in zip(rows, details, strict=True):
         lines.append(
-            f"{post_id:>{widths[0]}}  {attr:<{widths[1]}}  "
+            f"{post_id:>{widths[0]}}  {public:<{widths[1]}}  "
             f"{issues:<{widths[2]}}  {title}"
         )
         lines.extend(indent + line for line in extra)
@@ -669,6 +675,15 @@ def _ls(arguments: argparse.Namespace, session: _Session) -> str:
         columns = shutil.get_terminal_size().columns
         lines = [_fit(line, columns) for line in lines]
     return "\n".join(lines)
+
+
+def _public(post: Post, now: datetime) -> str:
+    """The Public column: a mark, before the date for a post not yet shown."""
+    if post.status is not PostStatus.PUBLIC:
+        return ""
+    if post.date is None or post.date <= now:
+        return "*"
+    return f"*{post.date:%b} {post.date.day}, {post.date.year}"
 
 
 def _cells(character: str) -> int:

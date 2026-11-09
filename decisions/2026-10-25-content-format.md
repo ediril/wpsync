@@ -4,7 +4,7 @@ Date: 2026-10-25
 
 ## Decision
 
-Each post is one Markdown file with YAML frontmatter under `posts/`. The
+Each post is one Markdown file with YAML frontmatter under `content/`. The
 frontmatter holds the platform post ID once the file is linked to a post, plus
 title, slug, date, status, categories, and tags. Categories and tags are names;
 the WordPress adapter resolves them to term IDs.
@@ -121,8 +121,16 @@ post keeps its spacing on the blog until it is edited and pushed.
 
 Embed blocks without custom classes or alignment become their bare URL; the
 aspect-ratio classes the editor adds by itself do not count as custom. Images
-from the site's media library are downloaded into `images/` and the Markdown
-references the local file; only images the final Markdown uses are downloaded.
+from the site's media library are downloaded into `content/images/` and the
+Markdown references the local file; only images the final Markdown uses are
+downloaded. A Markdown image source is relative to the post file, the
+convention Markdown editors preview with, so the same image is
+`images/photo.png` from `content/` and `../images/photo.png` from a subfolder.
+The media table keeps each image's path relative to the profile folder, so one
+file has one row whatever post shows it; only the conversion between that path
+and a post's source depends on where the post lives. Keeping images inside
+`content/` keeps everything a post displays beside it, and leaves the rest of
+the profile folder to the user.
 An image whose file is gone from the server (HTTP 404 or 410, or a response that
 is not an image) still becomes a Markdown image with its local path and a media
 row, but no file: a missing file is no reason to keep a block as HTML, and the

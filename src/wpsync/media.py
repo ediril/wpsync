@@ -2,14 +2,16 @@
 
 from __future__ import annotations
 
+import posixpath
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 from urllib.parse import unquote, urlsplit
 
+from wpsync.documents import CONTENT_DIR
 from wpsync.state import MediaRecord
 
-IMAGES_DIR = "images"
+IMAGES_DIR = f"{CONTENT_DIR}/images"
 
 
 class MissingImage(Exception):
@@ -52,16 +54,15 @@ class MediaLibrary:
         self.by_url = {record.url: record.path for record in records}
         self.pending: dict[PurePosixPath, Download] = {}
 
-    def remember(self, url: str, media_id: str, size: str) -> str:
+    def remember(self, url: str, media_id: str, size: str) -> PurePosixPath:
         path = self.by_url.get(url)
         if path is None:
             path = self._free_path(url, media_id)
             self.by_url[url] = path
             self.pending[path] = Download(path, url, media_id, size)
-        return str(path)
+        return path
 
-    def lookup(self, src: str) -> MediaImage | None:
-        path = PurePosixPath(src)
+    def lookup(self, path: PurePosixPath) -> MediaImage | None:
         if path in self.by_path:
             record = self.by_path[path]
             return MediaImage(record.media_id, record.url, record.size)
@@ -98,3 +99,31 @@ class MediaLibrary:
             if not taken and not (self.root / path).exists():
                 return path
         raise ValueError(f"no free file name for {url}")
+
+
+class PostMedia:
+    """The media table as one post sees it, with sources relative to its file."""
+
+    def __init__(self, library: MediaLibrary, post: PurePosixPath) -> None:
+        self.library = library
+        self.post = post
+
+    def remember(self, url: str, media_id: str, size: str) -> str:
+        path = self.library.remember(url, media_id, size)
+        return posixpath.relpath(path, self.post.parent)
+
+    def lookup(self, src: str) -> MediaImage | None:
+        path = image_path(self.post, src)
+        return None if path is None else self.library.lookup(path)
+
+
+def image_path(post: PurePosixPath, source: str) -> PurePosixPath | None:
+    """The file a post's image source names, relative to the profile folder.
+
+    Sources are relative to the post's file, as Markdown editors read them. A
+    source that is a URL names no local file.
+    """
+    if urlsplit(source).scheme or source.startswith("//"):
+        return None
+    joined = posixpath.join(post.parent.as_posix(), unquote(source))
+    return PurePosixPath(posixpath.normpath(joined))

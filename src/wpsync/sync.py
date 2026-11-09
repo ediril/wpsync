@@ -10,8 +10,8 @@ from pathlib import Path, PurePosixPath
 from typing import Generic, Protocol, TypeVar
 
 from wpsync.documents import (
+    CONTENT_DIR,
     FIELDS,
-    POSTS_DIR,
     LocalDocument,
     body_checksum,
     fields_checksum,
@@ -63,7 +63,7 @@ def select(
             raise SelectionError(f"{selector} is outside the profile folder") from error
         chosen = [item for item in documents if PurePosixPath(item.path) == relative]
         if not chosen:
-            raise SelectionError(f"{selector} is not a post file under {POSTS_DIR}/")
+            raise SelectionError(f"{selector} is not a post file under {CONTENT_DIR}/")
     else:
         chosen = [item for item in documents if item.document.post.slug == selector]
         if not chosen:

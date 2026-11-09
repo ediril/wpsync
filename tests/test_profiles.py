@@ -74,10 +74,10 @@ def test_init_rejects_a_folder_inside_another_profile(tmp_path, store):
 
 def test_commands_infer_the_profile_or_take_a_prefix(tmp_path, store, monkeypatch):
     blog = tmp_path / "blog"
-    (blog / "posts").mkdir(parents=True)
+    (blog / "content").mkdir(parents=True)
     add_profile(store, "myblog", blog)
 
-    monkeypatch.chdir(blog / "posts")
+    monkeypatch.chdir(blog / "content")
     assert invoke(["ro"], store)[:2] == (0, f"{blog.resolve()}\n")
     assert invoke(["profile"], store)[:2] == (0, "myblog\n")
 

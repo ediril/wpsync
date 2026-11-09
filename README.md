@@ -73,8 +73,10 @@ Commands may be shortened to any unique prefix, such as `wpsync di`.
 
 ## Post files
 
-Each post is a Markdown file under the profile folder's `posts/` directory, in
-any subfolder. The file starts with a YAML header:
+Each post is a Markdown file under the profile folder's `content/` directory, in
+any subfolder. Everything else in the profile folder is yours: WPSync reads only
+`.md` files under `content/`, and skips files and folders whose names start
+with a dot. The file starts with a YAML header:
 
 ```markdown
 ---
@@ -141,13 +143,27 @@ it writes its own fields in the order above, sorts category and tag names, and
 leaves other entries and their comments unchanged. Two files with the same `id`
 are an error.
 
+## Images
+
+An image's path is relative to the post file that shows it, as Markdown editors
+such as VS Code and Obsidian read it, so their previews show the image. Pull
+saves images in `content/images/`: a post in `content/` refers to
+`images/photo.png`, and one in `content/2019/` to `../images/photo.png`. An
+image you add can be anywhere in the profile folder, so an editor that saves
+pasted images next to the post works too. Moving a post into another folder
+breaks its relative image paths, as it does in any Markdown editor.
+
+In Obsidian, turn off **Use [[Wikilinks]]** and set **New link format** to
+**Relative path to file** under Settings, Files and links. WPSync reads standard
+Markdown images, `![alt](path)`, and sends `![[photo.png]]` as plain text.
+
 ## Starting a post
 
-`create` starts a post file under `posts/`. The title and slug can wait:
+`create` starts a post file under `content/`. The title and slug can wait:
 
 ```console
-wpsync create idea                             # posts/idea.md
-wpsync create drafts/hello -t "Hello, World!"  # posts/drafts/hello.md, with a title
+wpsync create idea                             # content/idea.md
+wpsync create drafts/hello -t "Hello, World!"  # content/drafts/hello.md, with a title
 wpsync create hello -s hello-again             # choose the slug
 ```
 
@@ -168,13 +184,13 @@ touches local files.
 ## Pulling posts
 
 `pull` brings the blog's posts into the profile folder: each post becomes
-`posts/<slug>.md`, and images from the site's media library are downloaded into
-`images/` and referenced from the Markdown. The copy of an image that the post
+`content/<slug>.md`, and images from the site's media library are downloaded into
+`content/images/` and referenced from the Markdown. The copy of an image that the post
 displays is downloaded, usually WordPress's resized `large` copy.
 
 If an image's file is gone from the server, or the server answers with something
 other than an image, pull lists it as `missing:` on the post's line and carries on. The
-Markdown refers to `images/<name>` as usual, and later pulls add the file if the
+Markdown refers to the image's local path as usual, and later pulls add the file if the
 server has it again. Any other download failure, such as a server error, stops
 the pull; rerun it to continue.
 
@@ -190,10 +206,10 @@ wpsync pull -y       # answer yes to every question
 ```
 
 ```text
-+  123  posts/hello-world.md  2 images
-~  145  posts/release-notes.md
-?  150  posts/about.md  changed on both sides; your file is unchanged
-+  160  posts/gallery-tour.md  kept as HTML: core/gallery
++  123  content/hello-world.md  2 images
+~  145  content/release-notes.md
+?  150  content/about.md  changed on both sides; your file is unchanged
++  160  content/gallery-tour.md  kept as HTML: core/gallery
 Pulled 3 posts (2 new, 1 updated), 2 images; 1 skipped. Rerun pull with --yes to accept the skipped changes.
 ```
 
@@ -228,9 +244,9 @@ wpsync push -y       # answer yes to every question
 ```
 
 ```text
-+  170  posts/hello-world.md  1 image; https://example.com/hello-world/
-~  145  posts/release-notes.md
-?  150  posts/about.md  content; also changed on WordPress since the last sync
++  170  content/hello-world.md  1 image; https://example.com/hello-world/
+~  145  content/release-notes.md
+?  150  content/about.md  content; also changed on WordPress since the last sync
 Pushed 2 posts (1 new, 1 updated), 1 image; 1 skipped. Rerun with --yes to accept the skipped changes.
 ```
 
@@ -243,8 +259,8 @@ Pushed 2 posts (1 new, 1 updated), 1 image; 1 skipped. Rerun with --yes to accep
   a draft. Its ID, comments, and address are kept, and edits made in the meantime
   are sent when it is made public again.
 - Local images are uploaded to the media library once and sent as WordPress image
-  markup. An image file you replace is uploaded again. Sources are relative to the
-  profile folder, as in `images/photo.png`.
+  markup. An image file you replace is uploaded again. See
+  [Images](#images) for where image files can live.
 - A post without a title is skipped.
 - Push never deletes anything on the blog.
 
@@ -283,7 +299,7 @@ which is never cut:
 $ wpsync ls -l
 ID  Public  Issues  Title
 67  *       2       Hurt
-                    posts/hurt.md
+                    content/hurt.md
                     https://blog.test/hurt/
 ```
 
@@ -301,7 +317,7 @@ Status:     public
 Date:       2025-11-04T10:00:00-05:00
 Categories: Notes
 Tags:       -
-File:       posts/hurt.md
+File:       content/hurt.md
 URL:        https://blog.test/hurt/
 Issues:     2
   missing file: https://blog.test/wp-content/uploads/2025/11/photo.png
@@ -321,18 +337,18 @@ wpsync diff          # every post
 wpsync diff 123      # one post, by ID
 wpsync diff hello    # one post, by slug
 wpsync diff "Hello World"   # one post, by title
-wpsync diff posts/new-idea.md   # one post, by file
+wpsync diff content/new-idea.md   # one post, by file
 wpsync diff -a       # also list unchanged posts
 wpsync --legend      # explain the diff and ls symbols
 ```
 
 ```text
-~ l  123  posts/hello-world.md  content; block post becomes plain HTML on push
-~ l  145  posts/release-notes.md  details
-?    150  posts/about.md  content; also changed on WordPress since the last sync
-- l  160  posts/old.md  deleted locally; WordPress keeps the post
-+ l    -  posts/new-idea.md  new post
-~ l  170  posts/old-news.md  unpublish; becomes a draft on WordPress
+~ l  123  content/hello-world.md  content; block post becomes plain HTML on push
+~ l  145  content/release-notes.md  details
+?    150  content/about.md  content; also changed on WordPress since the last sync
+- l  160  content/old.md  deleted locally; WordPress keeps the post
++ l    -  content/new-idea.md  new post
+~ l  170  content/old-news.md  unpublish; becomes a draft on WordPress
 Not shown: 12 unchanged, 3 private (-a to show)
 ```
 

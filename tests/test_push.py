@@ -8,8 +8,8 @@ def run(store, wordpress, *arguments):
 
 
 def write_post(root, name, header, body="Text."):
-    path = root / "posts" / name
-    path.parent.mkdir(exist_ok=True)
+    path = root / "content" / name
+    path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(f"---\n{header}---\n\n{body}\n")
     return path
 
@@ -19,7 +19,7 @@ def pulled_blog(tmp_path, store):
     add_profile(store, "myblog", tmp_path)
     run(store, wordpress, "pull")
     wordpress.requests.clear()
-    return wordpress, tmp_path / "posts/post-1.md"
+    return wordpress, tmp_path / "content/post-1.md"
 
 
 def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
@@ -33,9 +33,9 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
     )
     assert status == 0
     assert output == (
-        "Created posts/hello-world.md (private; set status: public to publish it).\n"
+        "Created content/hello-world.md (private; set status: public to publish it).\n"
     )
-    path = tmp_path / "posts/hello-world.md"
+    path = tmp_path / "content/hello-world.md"
     assert path.read_text() == (
         "---\ntitle: ''\nstatus: private\ncategories: []\ntags: []\n---\n"
     )
@@ -47,7 +47,7 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
     path.write_text(path.read_text().replace("private", "public") + "\nFirst *post*.\n")
     _, output, _ = run(store, wordpress, "push")
     assert output.splitlines()[-2:] == [
-        "?  -  posts/hello-world.md  no title; push needs one",
+        "?  -  content/hello-world.md  no title; push needs one",
         "Nothing to push; 1 skipped.",
     ]
     assert wordpress.saved == []
@@ -57,7 +57,7 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
 
     assert (status, errors) == (0, "")
     assert output.splitlines()[1:] == [
-        "+  3  posts/hello-world.md  https://blog.test/hello-world/",
+        "+  3  content/hello-world.md  https://blog.test/hello-world/",
         "Pushed 1 post (1 new).",
     ]
     assert wordpress.saved == [
@@ -103,12 +103,12 @@ def test_create_takes_a_title_and_slug_and_never_overwrites(tmp_path, store):
         password=None,
     )
     assert status == 0
-    text = (tmp_path / "posts/notes/a.md").read_text()
+    text = (tmp_path / "content/notes/a.md").read_text()
     assert "title: Long title\nslug: short\n" in text
 
     for arguments, message in (
-        (["other", "-s", "short"], "slug 'short' is used by posts/notes/a.md"),
-        (["notes/a.md"], "posts/notes/a.md already exists"),
+        (["other", "-s", "short"], "slug 'short' is used by content/notes/a.md"),
+        (["notes/a.md"], "content/notes/a.md already exists"),
         (["../a"], "'../a' does not make a file name"),
         (["!!!"], "'!!!' does not make a file name"),
     ):
@@ -132,7 +132,7 @@ def test_a_new_file_with_a_taken_slug_is_never_created_and_updates_only_on_yes(
 
     assert status == 0
     assert output.splitlines()[-2:] == [
-        "?  -  posts/mine.md  same slug as #1 'Post 1'",
+        "?  -  content/mine.md  same slug as #1 'Post 1'",
         "Nothing to push; 1 skipped. Rerun with --yes to accept the skipped changes.",
     ]
     assert wordpress.saved == []
@@ -140,7 +140,7 @@ def test_a_new_file_with_a_taken_slug_is_never_created_and_updates_only_on_yes(
 
     _, output, _ = run(store, wordpress, "push", "-y")
 
-    assert "~  1  posts/mine.md" in output
+    assert "~  1  content/mine.md" in output
     assert len(wordpress.posts) == 2
     assert wordpress.post(1)["content"]["raw"] == "<p>Text.</p>"
     assert path.read_text().startswith("---\nid: 1\n")
@@ -152,11 +152,11 @@ def test_a_shared_title_needs_a_yes_before_creating_a_duplicate(tmp_path, store)
     write_post(tmp_path, "mine.md", "title: Post 1\nslug: other\nstatus: public\n")
 
     _, output, _ = run(store, wordpress, "push")
-    assert "?  -  posts/mine.md  new post; same title as #1" in output
+    assert "?  -  content/mine.md  new post; same title as #1" in output
     assert wordpress.saved == []
 
     _, output, _ = run(store, wordpress, "push", "--yes")
-    assert "+  3  posts/mine.md" in output
+    assert "+  3  content/mine.md" in output
 
 
 def test_a_slug_wordpress_changes_is_reported_and_written_back(tmp_path, store):
@@ -184,7 +184,7 @@ def test_an_update_sends_only_the_side_of_the_file_that_changed(tmp_path, store)
     path.write_text(path.read_text().replace("title: Post 1", "title: Renamed"))
     _, output, _ = run(store, wordpress, "push")
     assert output.splitlines()[-2:] == [
-        "~  1  posts/post-1.md",
+        "~  1  content/post-1.md",
         "Pushed 1 post (1 updated).",
     ]
     assert "content" not in wordpress.saved[-1]
@@ -217,7 +217,7 @@ def test_a_change_on_both_sides_or_to_a_block_post_needs_a_yes(tmp_path, store):
     path.write_text(path.read_text().replace("Block", "Edited"))
 
     _, output, _ = run(store, wordpress, "push")
-    assert "?  1  posts/post-1.md  block post would become plain HTML" in output
+    assert "?  1  content/post-1.md  block post would become plain HTML" in output
     assert wordpress.saved == []
 
     _, output, _ = run(store, wordpress, "push", "-y")
@@ -236,7 +236,7 @@ def test_a_private_post_becomes_a_draft_and_later_republishes_with_unsent_edits(
 
     _, output, _ = run(store, wordpress, "push")
 
-    assert "~  1  posts/post-1.md  now a draft on WordPress" in output
+    assert "~  1  content/post-1.md  now a draft on WordPress" in output
     assert wordpress.saved == [{"status": "draft"}]
     assert wordpress.post(1)["content"]["raw"] == "<p>Body 1</p>"
 
@@ -256,18 +256,18 @@ def test_a_private_post_becomes_a_draft_and_later_republishes_with_unsent_edits(
 def test_a_local_image_uploads_once_and_is_sent_as_library_markup(tmp_path, store):
     wordpress = FakeWordPress(post_count=1)
     add_profile(store, "myblog", tmp_path)
-    (tmp_path / "images").mkdir()
-    (tmp_path / "images/cat.png").write_bytes(b"cat")
+    (tmp_path / "content/images").mkdir(parents=True)
+    (tmp_path / "content/images/cat.png").write_bytes(b"cat")
     path = write_post(
         tmp_path,
-        "mine.md",
+        "2026/mine.md",
         "title: Mine\nstatus: public\n",
-        "![A cat](images/cat.png)",
+        "![A cat](../images/cat.png)",
     )
 
     _, output, _ = run(store, wordpress, "push")
 
-    assert "+  2  posts/mine.md  1 image;" in output
+    assert "+  2  content/2026/mine.md  1 image;" in output
     assert "Pushed 1 post (1 new), 1 image." in output
     assert wordpress.uploads == ['attachment; filename="cat.png"']
     url = "https://blog.test/wp-content/uploads/uploaded-901-1024x768.png"
@@ -275,13 +275,17 @@ def test_a_local_image_uploads_once_and_is_sent_as_library_markup(tmp_path, stor
         '<figure class="wp-block-image size-large">'
         f'<img src="{url}" alt="A cat" class="wp-image-901" /></figure>'
     )
-    assert "images/cat.png" in path.read_text()
+    assert "../images/cat.png" in path.read_text()
 
     path.write_text(path.read_text() + "\nMore.\n")
+    write_post(
+        tmp_path, "top.md", "title: Top\nstatus: public\n", "![](images/cat.png)"
+    )
     run(store, wordpress, "push")
     assert len(wordpress.uploads) == 1
+    assert 'class="wp-image-901"' in wordpress.saved[-1]["content"]
 
-    (tmp_path / "images/cat.png").write_bytes(b"a better cat")
+    (tmp_path / "content/images/cat.png").write_bytes(b"a better cat")
     path.write_text(path.read_text() + "\nEven more.\n")
     run(store, wordpress, "push")
     assert len(wordpress.uploads) == 2
@@ -299,7 +303,7 @@ def test_a_missing_image_is_not_uploaded_and_a_lost_one_stops_only_its_post(
     wordpress.broken_uploads["/wp-content/uploads/2026/01/sunset-1024x768.jpg"] = 404
     add_profile(store, "myblog", tmp_path)
     run(store, wordpress, "pull")
-    pulled = tmp_path / "posts/post-1.md"
+    pulled = tmp_path / "content/post-1.md"
     pulled.write_text(pulled.read_text() + "\nMore.\n")
     write_post(
         tmp_path, "lost.md", "title: Lost\nstatus: public\n", "![](images/nope.png)"
@@ -310,8 +314,8 @@ def test_a_missing_image_is_not_uploaded_and_a_lost_one_stops_only_its_post(
 
     assert wordpress.uploads == []
     assert 'class="wp-image-42"' in wordpress.post(1)["content"]["raw"]
-    assert "?  -  posts/lost.md  image not found: images/nope.png" in output
-    assert "+  2  posts/fine.md" in output
+    assert "?  -  content/lost.md  image not found: images/nope.png" in output
+    assert "+  2  content/fine.md" in output
     assert "1 skipped." in output
 
 

@@ -26,7 +26,7 @@ from wpsync.config import (
     validate_profile_name,
 )
 from wpsync.documents import (
-    POSTS_DIR,
+    CONTENT_DIR,
     Document,
     DocumentError,
     LocalDocument,
@@ -69,7 +69,7 @@ PROFILE_AWARE_COMMANDS = frozenset(
         "push",
     }
 )
-NO_POSTS = "No posts here yet. Run wpsync pull, or add Markdown files under posts/."
+NO_POSTS = "No posts here yet. Run wpsync pull, or add Markdown files under content/."
 RESET = "\033[0m"
 MARKER_COLORS = {
     "+": "\033[38;5;82m",
@@ -283,11 +283,11 @@ def build_parser() -> argparse.ArgumentParser:
             "       wpsync PROFILE create FILE [-t TITLE] [-s SLUG]"
         ),
         description=(
-            "Start a private post under posts/. Set its status to public when push "
+            "Start a private post under content/. Set its status to public when push "
             "should publish it; push needs a title by then."
         ),
     )
-    create.add_argument("file", metavar="FILE", help="file name under posts/")
+    create.add_argument("file", metavar="FILE", help="file name under content/")
     create.add_argument("-t", "--title", default="", help="the post's title")
     create.add_argument(
         "-s", "--slug", help="the post's address; WordPress assigns one when omitted"
@@ -620,7 +620,7 @@ def _new_file(name: str) -> PurePosixPath:
     stem = name.removesuffix(".md")
     if "/" not in stem:
         stem = re.sub(r"[^\w.-]+", "-", stem.casefold()).strip("-.")
-    relative = PurePosixPath(POSTS_DIR, f"{stem}.md")
+    relative = PurePosixPath(CONTENT_DIR, f"{stem}.md")
     if not stem or ".." in relative.parts or PurePosixPath(stem).is_absolute():
         raise SelectionError(f"'{name}' does not make a file name")
     return relative
@@ -653,7 +653,7 @@ def _ls(arguments: argparse.Namespace, session: _Session) -> str:
             rows.append((post_id, public, issues, title))
             details.append([str(item.path), *([record.url] if record else [])])
         else:
-            name = PurePosixPath(item.path).relative_to(POSTS_DIR)
+            name = PurePosixPath(item.path).relative_to(CONTENT_DIR)
             rows.append((post_id, public, issues, f"{title} ({name})"))
             details.append([])
     widths = [max(len(row[i]) for row in rows) for i in range(3)]

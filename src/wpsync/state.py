@@ -12,7 +12,7 @@ from pathlib import Path, PurePosixPath
 from wpsync.posts import ContentFormat
 
 STATE_PATH = Path(".wpsync") / "state.db"
-SCHEMA_VERSION = 3
+SCHEMA_VERSION = 4
 SCHEMA = """
 CREATE TABLE site (
     id INTEGER PRIMARY KEY CHECK (id = 1),

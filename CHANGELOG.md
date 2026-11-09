@@ -9,7 +9,7 @@
   `~/.wpsync/config.json`, with current-directory inference, a profile-prefix
   override, and an Application Password read from an environment variable.
   `init` checks that the address is a WordPress site without signing in.
-- Read and write post files: Markdown under `posts/` with a YAML header.
+- Read and write post files: Markdown under `content/` with a YAML header.
   WPSync rewrites its own fields canonically, keeps other header entries and
   their comments byte for byte, and reports every invalid file and every post
   ID shared by two files at once.
@@ -35,8 +35,9 @@
   file, and number of issues, fitting the terminal; `ls -l` puts each post's
   file and address on the blog on their own lines. `show ID|SLUG` gives one post's details and lists its
   issues, finding the post by ID, slug, file, or title.
-- `pull [ID|SLUG]` brings posts into `posts/<slug>.md` and downloads the
-  images they display into `images/`. Edited files are replaced, and unlinked
+- `pull [ID|SLUG]` brings posts into `content/<slug>.md` and downloads the
+  images they display into `content/images/`, referred to relative to each post
+  file so Markdown editors preview them. Edited files are replaced, and unlinked
   files are linked with WordPress's changes, only after confirmation or
   `--yes`. A file that WordPress's version would only fill in is linked without
   asking. Pull never restores or deletes local files. Titles are written as
@@ -45,7 +46,7 @@
   other than an image, is reported, and the post still converts. Later pulls
   add the file if the server has it again.
   Iframes showing uploaded files are checked too.
-- `create FILE [-t TITLE] [-s SLUG]` starts a private post file under `posts/`.
+- `create FILE [-t TITLE] [-s SLUG]` starts a private post file under `content/`.
 - `push [ID|SLUG]` creates and updates posts from changed files, sending only the
   content or the header fields that changed. It writes what WordPress assigned
   back into new files, uploads local images, turns a published post made private

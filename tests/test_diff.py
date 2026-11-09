@@ -20,7 +20,7 @@ def synced(root, wordpress, post_id, name):
         status=PostStatus.PUBLIC,
         body="Body",
     )
-    path = Path("posts") / name
+    path = Path("content") / name
     write_document(root / path, Document(str(post_id), post))
     with write_state(root, API_ROOT) as state:
         state.save(
@@ -44,7 +44,7 @@ def edit(path, old, new):
 
 def new_post(root, name, **fields):
     fields.setdefault("status", PostStatus.PUBLIC)
-    write_document(root / "posts" / name, Document(None, Post(**fields)))
+    write_document(root / "content" / name, Document(None, Post(**fields)))
 
 
 def test_diff_in_an_empty_folder_says_there_are_no_posts(tmp_path, store):
@@ -54,7 +54,7 @@ def test_diff_in_an_empty_folder_says_there_are_no_posts(tmp_path, store):
 
     assert (status, output) == (
         0,
-        "No posts here yet. Run wpsync pull, or add Markdown files under posts/.\n",
+        "No posts here yet. Run wpsync pull, or add Markdown files under content/.\n",
     )
 
 
@@ -99,12 +99,13 @@ def test_diff_shows_local_changes_and_fetches_only_those_posts(tmp_path, store):
 
     assert status == 0
     assert output.splitlines() == [
-        "~ l  3  posts/blocks.md  content; block post becomes plain HTML on push",
-        "?    4  posts/both.md  content; also changed on WordPress since the last sync",
-        "~ l  1  posts/content.md  content",
-        "- l  5  posts/deleted.md  deleted locally; WordPress keeps the post",
-        "~ l  2  posts/details.md  details",
-        "~ l  7  posts/unpublish.md  unpublish; becomes a draft on WordPress",
+        "~ l  3  content/blocks.md  content; block post becomes plain HTML on push",
+        "?    4  content/both.md  "
+        "content; also changed on WordPress since the last sync",
+        "~ l  1  content/content.md  content",
+        "- l  5  content/deleted.md  deleted locally; WordPress keeps the post",
+        "~ l  2  content/details.md  details",
+        "~ l  7  content/unpublish.md  unpublish; becomes a draft on WordPress",
         "Not shown: 1 unchanged, 1 private (-a to show)",
     ]
     fetched = [r.url.params.get("include") for r in wordpress.requests]
@@ -124,10 +125,10 @@ def test_diff_matches_new_files_by_slug_and_notes_shared_titles(tmp_path, store)
 
     assert status == 0
     assert output.splitlines() == [
-        "? l  -  posts/a.md  same slug as #1 'Post 1'",
-        "+ l  -  posts/b.md  new post; same title as #3",
-        "+ l  -  posts/c.md  new post; same title as #2, #9",
-        "+ l  -  posts/d.md  new post",
+        "? l  -  content/a.md  same slug as #1 'Post 1'",
+        "+ l  -  content/b.md  new post; same title as #3",
+        "+ l  -  content/c.md  new post; same title as #2, #9",
+        "+ l  -  content/d.md  new post",
     ]
 
 
@@ -136,11 +137,11 @@ def test_one_post_is_selected_by_id_slug_or_path(tmp_path, store, monkeypatch):
     add_profile(store, "myblog", tmp_path)
     edit(synced(tmp_path, wordpress, 1, "one.md"), "Body", "New body")
     edit(synced(tmp_path, wordpress, 2, "two.md"), "Body", "New body")
-    monkeypatch.chdir(tmp_path / "posts")
+    monkeypatch.chdir(tmp_path / "content")
 
     for selector in ("2", "post-2", "two.md"):
         status, output, _ = invoke(["diff", selector], store, wordpress=wordpress)
-        assert (status, output) == (0, "~ l  2  posts/two.md  content\n"), selector
+        assert (status, output) == (0, "~ l  2  content/two.md  content\n"), selector
 
     status, _, errors = invoke(["diff", "post-9"], store, wordpress=wordpress)
     assert status == 1
@@ -174,7 +175,7 @@ def test_ls_lists_local_posts_without_contacting_the_blog(tmp_path, store, monke
     assert ls("-l")[:4] == [
         "ID  Public        Issues  Title",
         " 3  *             -       Post 3",
-        "                          posts/three.md",
+        "                          content/three.md",
         "                          https://blog.test/post-3/",
     ]
     assert wordpress.requests == []
@@ -184,7 +185,7 @@ def test_ls_lists_local_posts_without_contacting_the_blog(tmp_path, store, monke
         "ID  Public        Issues  Title…",
         " 3  *             -       Post …",
     ]
-    assert ls("-l", stdout=Terminal())[2] == "                          posts…"
+    assert ls("-l", stdout=Terminal())[2] == "                          conte…"
 
 
 def test_show_finds_a_post_by_id_slug_file_or_title(tmp_path, store):
@@ -192,7 +193,7 @@ def test_show_finds_a_post_by_id_slug_file_or_title(tmp_path, store):
     add_profile(store, "myblog", tmp_path)
     synced(tmp_path, wordpress, 3, "three.md")
 
-    for selector in ("3", "post-3", "posts/three.md", "post 3"):
+    for selector in ("3", "post-3", "content/three.md", "post 3"):
         status, output, errors = invoke(
             ["myblog", "show", selector], store, wordpress=wordpress, password=None
         )

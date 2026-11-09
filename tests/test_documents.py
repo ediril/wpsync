@@ -85,7 +85,7 @@ def test_invalid_files_are_rejected_with_an_actionable_message(text, message):
 
 
 def test_scan_reads_nested_posts_and_reports_every_problem_at_once(tmp_path):
-    posts = tmp_path / "posts"
+    posts = tmp_path / "content"
     write_document(posts / "a.md", Document("7", Post(title="A")))
     write_document(posts / "2026" / "b.md", Document(None, Post(title="B")))
     write_document(posts / "2026" / "copy.md", Document("7", Post(title="Copy")))
@@ -97,9 +97,9 @@ def test_scan_reads_nested_posts_and_reports_every_problem_at_once(tmp_path):
         scan_documents(tmp_path)
 
     problems = str(raised.value).splitlines()
-    assert problems[0].startswith("posts/broken.md: missing frontmatter")
+    assert problems[0].startswith("content/broken.md: missing frontmatter")
     assert problems[-1] == (
-        "post id 7 is used by more than one file: posts/2026/copy.md, posts/a.md"
+        "post id 7 is used by more than one file: content/2026/copy.md, content/a.md"
     )
 
     (posts / "broken.md").unlink()
@@ -107,4 +107,4 @@ def test_scan_reads_nested_posts_and_reports_every_problem_at_once(tmp_path):
     found = [
         (str(item.path), item.document.post.title) for item in scan_documents(tmp_path)
     ]
-    assert found == [("posts/2026/b.md", "B"), ("posts/a.md", "A")]
+    assert found == [("content/2026/b.md", "B"), ("content/a.md", "A")]

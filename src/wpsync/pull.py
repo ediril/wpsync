@@ -9,7 +9,7 @@ from pathlib import Path, PurePosixPath
 from typing import Protocol
 
 from wpsync.documents import (
-    POSTS_DIR,
+    CONTENT_DIR,
     Document,
     LocalDocument,
     body_checksum,
@@ -18,7 +18,7 @@ from wpsync.documents import (
     serialize_document,
 )
 from wpsync.markup.markdown import image_sources
-from wpsync.media import Media, MediaLibrary, MissingImage
+from wpsync.media import Media, MediaLibrary, MissingImage, PostMedia, image_path
 from wpsync.posts import Conversion, FetchedPost, Post, UnrepresentableContent
 from wpsync.state import MediaRecord, PostRecord, write_state
 from wpsync.storage import write_atomic, write_text_atomic
@@ -295,7 +295,7 @@ class Puller:
 
     def _new_path(self, post: FetchedPost) -> PurePosixPath:
         for name in (post.name, f"{post.name}-{post.id}"):
-            path = PurePosixPath(POSTS_DIR) / f"{name}.md"
+            path = PurePosixPath(CONTENT_DIR) / f"{name}.md"
             if path not in self.taken and not (self.root / path).exists():
                 return path
         raise ValueError(f"no free file name for post {post.id}")
@@ -312,11 +312,15 @@ class Puller:
             conversion = self._convert(post, path)
             if conversion is None:
                 return False
-        used = image_sources(conversion.markdown)
+        used = {
+            image
+            for source in image_sources(conversion.markdown)
+            if (image := image_path(path, source)) is not None
+        }
         # Download first, so a failure leaves nothing of this post behind.
         files = []
         for download in self.library.take_pending():
-            if str(download.path) not in used:
+            if download.path not in used:
                 self.library.release(download)
                 continue
             try:
@@ -337,10 +341,9 @@ class Puller:
             )
             self.library.add(image)
             images.append(image)
+        shown = [self.library.by_path.get(image) for image in sorted(used)]
         missing = [
-            self.library.by_path[path].url
-            for path in map(PurePosixPath, sorted(used))
-            if path in self.library.by_path and not self.library.by_path[path].checksum
+            record.url for record in shown if record and not record.checksum
         ] + pages_gone
         written = Document(
             post.id,
@@ -364,7 +367,7 @@ class Puller:
 
     def _convert(self, post: FetchedPost, path: PurePosixPath) -> Conversion | None:
         try:
-            return self.remote.convert(post, self.library)
+            return self.remote.convert(post, PostMedia(self.library, path))
         except UnrepresentableContent as error:
             for download in self.library.take_pending():
                 self.library.release(download)

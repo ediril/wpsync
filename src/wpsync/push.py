@@ -8,7 +8,6 @@ from dataclasses import dataclass, replace
 from functools import cached_property
 from pathlib import Path, PurePosixPath
 from typing import Protocol
-from urllib.parse import urlsplit
 
 from wpsync.documents import (
     Document,
@@ -20,7 +19,7 @@ from wpsync.documents import (
     write_document,
 )
 from wpsync.markup.markdown import image_sources
-from wpsync.media import Media, MediaImage, MediaLibrary
+from wpsync.media import Media, MediaImage, MediaLibrary, PostMedia, image_path
 from wpsync.posts import ContentFormat, FetchedPost, Post
 from wpsync.state import MediaRecord, PostRecord, write_state
 from wpsync.sync import Action, DiffEntry, PushStep, Remote
@@ -116,6 +115,7 @@ class Pusher:
     def _send(self, entry: DiffEntry, step: PushStep) -> None:
         document = step.document
         post = document.document.post
+        path = PurePosixPath(document.path)
         if step.question and not self.confirm(step.question):
             self._decline(entry, entry.detail)
             return
@@ -134,11 +134,12 @@ class Pusher:
             self._decline(entry, "needs " + ", ".join(missing))
             return
         try:
-            uploaded = self._upload_images(post.body) if step.content else 0
+            uploaded = self._upload_images(path, post.body) if step.content else 0
         except _CannotSend as error:
             self._skip(entry, str(error))
             return
-        content = self.remote.render(post.body, self.library) if step.content else None
+        media = PostMedia(self.library, path)
+        content = self.remote.render(post.body, media) if step.content else None
         saved = self.remote.save(
             step.target, post, content, step.fields, step.unpublish
         )
@@ -150,13 +151,13 @@ class Pusher:
         state = self.remote.post_states([post_id]).get(post_id)
         return state is not None and state.format is ContentFormat.BLOCKS
 
-    def _upload_images(self, body: str) -> int:
+    def _upload_images(self, post: PurePosixPath, body: str) -> int:
         """Upload the local images a body shows that the media table lacks."""
         uploaded = 0
         for source in sorted(image_sources(body)):
-            if urlsplit(source).scheme or source.startswith("//"):
+            path = image_path(post, source)
+            if path is None:
                 continue
-            path = PurePosixPath(source)
             if path.is_absolute() or ".." in path.parts:
                 raise _CannotSend(f"image {source} is outside the profile folder")
             known = self.library.by_path.get(path)

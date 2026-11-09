@@ -20,7 +20,7 @@ from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
 from wpsync.posts import Post, PostStatus
 from wpsync.storage import write_text_atomic
 
-POSTS_DIR = "posts"
+CONTENT_DIR = "content"
 FENCE = "---"
 FIELDS = ("id", "title", "slug", "date", "status", "categories", "tags")
 EXAMPLE_HEADER = "---\ntitle: My post\nstatus: public\n---"
@@ -219,7 +219,7 @@ def scan_documents(root: Path) -> list[LocalDocument]:
     """Read every post file under the root, reporting all problems together."""
     documents: list[LocalDocument] = []
     problems: list[str] = []
-    for path in _post_files(root / POSTS_DIR):
+    for path in _post_files(root / CONTENT_DIR):
         relative = path.relative_to(root)
         try:
             documents.append(LocalDocument(relative, _load(path)))

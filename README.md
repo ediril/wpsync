@@ -181,6 +181,24 @@ and run `push`. Push skips a post with no title. Without a slug, WordPress
 assigns one when the post is created. `create` never overwrites a file and only
 touches local files.
 
+## Opening a post
+
+`open` opens a post's file in your Markdown editor, chosen by ID, slug, title,
+or file. Choose the editor with `editor`, which is saved in
+`~/.wpsync/config.json` for every profile. Without a name it asks, and so does
+`open` the first time if no editor is chosen:
+
+```console
+wpsync editor vscode     # or obsidian
+wpsync open hello
+```
+
+VS Code opens the file with the profile folder as its workspace, using the
+`code` command; if it is missing, run **Shell Command: Install 'code' command in
+PATH** in VS Code. Obsidian opens files only inside a vault, so open the profile
+folder, or a folder above it, as a vault first. Other editors are not supported
+yet.
+
 ## Pulling posts
 
 `pull` brings the blog's posts into the profile folder: each post becomes

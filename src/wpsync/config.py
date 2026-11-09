@@ -7,6 +7,7 @@ from dataclasses import dataclass, field, replace
 from pathlib import Path
 from typing import Any
 
+from wpsync.editors import Editor
 from wpsync.storage import write_text_atomic
 
 CONFIG_VERSION = 1
@@ -108,6 +109,7 @@ class Profile:
 @dataclass
 class Configuration:
     profiles: dict[str, Profile] = field(default_factory=dict)
+    editor: Editor | None = None
 
     def add(self, name: str, profile: Profile) -> None:
         if name in self.profiles:
@@ -153,7 +155,10 @@ class ConfigurationStore:
         profiles = document.get("profiles", {})
         if not isinstance(profiles, dict):
             raise ConfigurationError(f"{self.path}: profiles must be an object")
-        configuration = Configuration()
+        editor = document.get("editor")
+        if editor is not None and editor not in set(Editor):
+            raise ConfigurationError(f"{self.path}: unknown editor {editor!r}")
+        configuration = Configuration(editor=Editor(editor) if editor else None)
         for name, profile in profiles.items():
             configuration.add(
                 validate_profile_name(name), Profile.from_document(name, profile)
@@ -161,12 +166,12 @@ class ConfigurationStore:
         return configuration
 
     def save(self, configuration: Configuration) -> None:
-        document = {
-            "version": CONFIG_VERSION,
-            "profiles": {
-                name: profile.to_document()
-                for name, profile in sorted(configuration.profiles.items())
-            },
+        document: dict[str, Any] = {"version": CONFIG_VERSION}
+        if configuration.editor is not None:
+            document["editor"] = configuration.editor.value
+        document["profiles"] = {
+            name: profile.to_document()
+            for name, profile in sorted(configuration.profiles.items())
         }
         self.path.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
         payload = json.dumps(document, indent=2) + "\n"

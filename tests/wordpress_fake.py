@@ -201,8 +201,19 @@ class Terminal(io.StringIO):
         return True
 
 
+def never_launch(command):
+    raise AssertionError(f"started {command}")
+
+
 def invoke(
-    arguments, store, *, stdin="", wordpress=None, password=PASSWORD, stdout=None
+    arguments,
+    store,
+    *,
+    stdin="",
+    wordpress=None,
+    password=PASSWORD,
+    stdout=None,
+    launch=never_launch,
 ):
     stdout, stderr = stdout or io.StringIO(), io.StringIO()
     status = run(
@@ -213,6 +224,7 @@ def invoke(
         stderr=stderr,
         environ={"MYBLOG_WP_PASSWORD": password} if password else {},
         transport=httpx.MockTransport(wordpress or FakeWordPress()),
+        launch=launch,
     )
     return status, stdout.getvalue(), stderr.getvalue()
 

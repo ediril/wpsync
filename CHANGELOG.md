@@ -47,6 +47,9 @@
   add the file if the server has it again.
   Iframes showing uploaded files are checked too.
 - `create FILE [-t TITLE] [-s SLUG]` starts a private post file under `content/`.
+- `open ID|SLUG` opens a post's file in Obsidian or VS Code, chosen with
+  `editor [obsidian|vscode]` and saved in `~/.wpsync/config.json`; both ask
+  when no editor is chosen.
 - `push [ID|SLUG]` creates and updates posts from changed files, sending only the
   content or the header fields that changed. It writes what WordPress assigned
   back into new files, uploads local images, turns a published post made private

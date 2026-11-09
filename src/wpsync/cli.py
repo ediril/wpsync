@@ -33,10 +33,11 @@ from wpsync.documents import (
     scan_documents,
     write_document,
 )
+from wpsync.editors import Editor, EditorError, editor_command, launch
 from wpsync.posts import Post, PostStatus, PostSummary, RemoteState
 from wpsync.pull import Puller
 from wpsync.push import Pusher
-from wpsync.state import StateError, read_media, read_records
+from wpsync.state import PostRecord, StateError, read_media, read_records
 from wpsync.sync import Action, DiffEntry, SelectionError, compare, select
 from wpsync.wordpress.client import WordPressClient, WordPressError, discover_api_root
 from wpsync.wordpress.remote import WordPressRemote
@@ -48,9 +49,11 @@ COMMANDS = (
     "root",
     "profile",
     "profiles",
+    "editor",
     "create",
     "ls",
     "show",
+    "open",
     "diff",
     "pull",
     "push",
@@ -64,6 +67,7 @@ PROFILE_AWARE_COMMANDS = frozenset(
         "create",
         "ls",
         "show",
+        "open",
         "diff",
         "pull",
         "push",
@@ -104,12 +108,14 @@ class _Session:
         stdout: TextIO,
         environ: Mapping[str, str],
         transport: httpx.BaseTransport | None,
+        launch: Callable[[list[str]], None],
     ) -> None:
         self.store = store
         self.stdin = stdin
         self.stdout = stdout
         self.environ = environ
         self.transport = transport
+        self.launch = launch
 
     def ask(self, prompt: str) -> str:
         print(prompt, end="", file=self.stdout, flush=True)
@@ -275,6 +281,23 @@ def build_parser() -> argparse.ArgumentParser:
         description="List profiles; * marks the one containing this directory.",
     )
 
+    editor = subparsers.add_parser(
+        "editor",
+        help="choose the editor that open uses",
+        usage="wpsync editor [obsidian|vscode]",
+        description=(
+            "Choose the Markdown editor that open uses, saved in "
+            "~/.wpsync/config.json. Asks when no editor is named."
+        ),
+    )
+    editor.add_argument(
+        "name",
+        nargs="?",
+        choices=list(Editor),
+        metavar="obsidian|vscode",
+        help="the editor",
+    )
+
     create = subparsers.add_parser(
         "create",
         help="start a new post file",
@@ -319,6 +342,17 @@ def build_parser() -> argparse.ArgumentParser:
         ),
     )
     show.add_argument("post", metavar="ID|SLUG", help="the post")
+
+    open_parser = subparsers.add_parser(
+        "open",
+        help="open a post file in your editor",
+        usage="wpsync open ID|SLUG\n       wpsync PROFILE open ID|SLUG",
+        description=(
+            "Open a post's file in the editor chosen with wpsync editor, asking "
+            "first if none is chosen. A title or file also selects the post."
+        ),
+    )
+    open_parser.add_argument("post", metavar="ID|SLUG", help="the post")
 
     diff = subparsers.add_parser(
         "diff",
@@ -701,7 +735,10 @@ def _fit(line: str, columns: int) -> str:
     return "".join(kept) + "…"
 
 
-def _show(arguments: argparse.Namespace, session: _Session) -> str:
+def _one_post(
+    arguments: argparse.Namespace, session: _Session
+) -> tuple[Path, LocalDocument, dict[str, PostRecord]]:
+    """The profile folder, the file of the post a command names, and the records."""
     profile, base = _profile_root(arguments, session)
     root = profile.local_root
     records = read_records(root, profile.api_root)
@@ -710,7 +747,11 @@ def _show(arguments: argparse.Namespace, session: _Session) -> str:
     )
     if not selection.documents:
         raise SelectionError(f"post {arguments.post} has no local file")
-    item = selection.documents[0]
+    return root, selection.documents[0], records
+
+
+def _show(arguments: argparse.Namespace, session: _Session) -> str:
+    _, item, records = _one_post(arguments, session)
     post = item.document.post
     post_id = item.document.post_id
     record = records.get(post_id) if post_id else None
@@ -797,6 +838,45 @@ def _pull_target(
     if local and local[0].document.post_id:
         return [local[0].document.post_id], None
     return None, selector
+
+
+def _open(arguments: argparse.Namespace, session: _Session) -> str:
+    root, item, _ = _one_post(arguments, session)
+    configuration = session.store.load()
+    editor = configuration.editor
+    if editor is None:
+        editor = _ask_editor(session)
+        configuration.editor = editor
+        session.store.save(configuration)
+    session.launch(editor_command(editor, root, root / item.path))
+    return f"Opened {item.path} in {editor.label}."
+
+
+def _editor(arguments: argparse.Namespace, session: _Session) -> str:
+    editor = Editor(arguments.name) if arguments.name else _ask_editor(session)
+    configuration = session.store.load()
+    configuration.editor = editor
+    session.store.save(configuration)
+    return f"wpsync open now uses {editor.label}."
+
+
+def _ask_editor(session: _Session) -> Editor:
+    if not getattr(session.stdin, "isatty", lambda: False)():
+        raise EditorError("no editor chosen; run wpsync editor obsidian|vscode")
+    editors = list(Editor)
+    print("Open posts with:", file=session.stdout)
+    for number, editor in enumerate(editors, 1):
+        print(f"  {number}) {editor.label}", file=session.stdout)
+    other = len(editors) + 1
+    print(f"  {other}) Other", file=session.stdout)
+    while True:
+        answer = session.ask(f"Choose 1-{other}: ")
+        if not answer:
+            raise EditorError("no editor chosen")
+        if answer == str(other):
+            raise EditorError("only Obsidian and VS Code are supported for now")
+        if answer.isdigit() and 1 <= int(answer) < other:
+            return editors[int(answer) - 1]
 
 
 def _confirmer(session: _Session, yes: bool) -> Callable[[str], bool]:
@@ -906,9 +986,11 @@ HANDLERS = {
     "root": _root,
     "profile": _profile,
     "profiles": _profiles,
+    "editor": _editor,
     "create": _create,
     "ls": _ls,
     "show": _show,
+    "open": _open,
     "diff": _diff,
     "pull": _pull,
     "push": _push,
@@ -924,6 +1006,7 @@ def run(
     stderr: TextIO = sys.stderr,
     environ: Mapping[str, str] = os.environ,
     transport: httpx.BaseTransport | None = None,
+    launch: Callable[[list[str]], None] = launch,
 ) -> int:
     parser = build_parser()
     raw_arguments = list(sys.argv[1:] if argv is None else argv)
@@ -933,7 +1016,9 @@ def run(
         parser.error(str(error))
     arguments = parser.parse_args(raw_arguments)
     arguments.profile_prefix = profile_prefix
-    session = _Session(store or ConfigurationStore(), stdin, stdout, environ, transport)
+    session = _Session(
+        store or ConfigurationStore(), stdin, stdout, environ, transport, launch
+    )
     if arguments.legend:
         if arguments.command is not None:
             parser.error("--legend cannot be combined with a command")
@@ -946,6 +1031,7 @@ def run(
     except (
         ConfigurationError,
         DocumentError,
+        EditorError,
         SelectionError,
         StateError,
         WordPressError,

@@ -22,7 +22,7 @@ from wpsync.markup.markdown import image_sources
 from wpsync.media import Media, MediaImage, MediaLibrary, PostMedia, image_path
 from wpsync.posts import ContentFormat, FetchedPost, Post
 from wpsync.state import MediaRecord, PostRecord, write_state
-from wpsync.sync import Action, DiffEntry, PushStep, Remote
+from wpsync.sync import Action, DiffEntry, PushStep, Remote, TrashStep
 
 
 class PushRemote(Remote, Protocol):
@@ -43,6 +43,10 @@ class PushRemote(Remote, Protocol):
         unpublish: bool,
     ) -> FetchedPost: ...
 
+    def trash(self, post_id: str) -> None:
+        """Move a post to the platform's trash, where it can be restored."""
+        ...
+
     def keeps_display(self, sent: str, stored: str) -> bool:
         """Whether the platform stored content that displays as it was sent."""
         ...
@@ -56,21 +60,23 @@ class _CannotSend(Exception):
 class PushResult:
     new: int = 0
     updated: int = 0
+    trashed: int = 0
     images: int = 0
     skipped: int = 0
     declined: int = 0
     """Skipped posts that answering yes would have sent."""
 
     def summary(self) -> str:
-        pushed = self.new + self.updated
+        pushed = self.new + self.updated + self.trashed
         if not pushed:
             skipped = f"; {self.skipped} skipped" if self.skipped else ""
             return f"Nothing to push{skipped}."
-        parts = [
-            f"{count} {label}"
-            for count, label in ((self.new, "new"), (self.updated, "updated"))
-            if count
-        ]
+        counts = (
+            (self.new, "new"),
+            (self.updated, "updated"),
+            (self.trashed, "trashed"),
+        )
+        parts = [f"{count} {label}" for count, label in counts if count]
         line = f"Pushed {pushed} post{'s' * (pushed != 1)}"
         line += f" ({', '.join(parts)})" if parts else ""
         if self.images:
@@ -106,7 +112,9 @@ class Pusher:
 
     def push(self, entries: list[DiffEntry]) -> PushResult:
         for entry in entries:
-            if entry.step is not None:
+            if isinstance(entry.step, TrashStep):
+                self._trash(entry, entry.step)
+            elif entry.step is not None:
                 self._send(entry, entry.step)
             elif entry.action is Action.CONFLICT:
                 self._skip(entry, entry.detail)
@@ -146,6 +154,21 @@ class Pusher:
         self._record(step, document, saved, content)
         self.result.images += uploaded
         self._report_sent(entry, step, saved, content, uploaded)
+
+    def _trash(self, entry: DiffEntry, step: TrashStep) -> None:
+        if step.question and not self.confirm(step.question):
+            self._decline(entry, entry.detail)
+            return
+        if step.gone:
+            detail = "already gone from WordPress; no longer tracked"
+        else:
+            self.remote.trash(step.target)
+            detail = "moved to the WordPress trash"
+        self.records.pop(step.target, None)
+        with write_state(self.root, self.api_root) as state:
+            state.forget(step.target)
+        self.result.trashed += 1
+        self.report(DiffEntry(Action.DELETED, "", step.target, entry.path, detail))
 
     def _is_block_post(self, post_id: str) -> bool:
         state = self.remote.post_states([post_id]).get(post_id)

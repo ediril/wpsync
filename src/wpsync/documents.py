@@ -12,7 +12,7 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
@@ -21,6 +21,7 @@ from wpsync.posts import Post, PostStatus
 from wpsync.storage import write_text_atomic
 
 CONTENT_DIR = "content"
+TRASH_DIR = ".trash"
 FENCE = "---"
 FIELDS = ("id", "title", "slug", "date", "status", "categories", "tags")
 EXAMPLE_HEADER = "---\ntitle: My post\nstatus: public\n---"
@@ -199,6 +200,18 @@ def _load(path: Path) -> Document:
 
 def write_document(path: Path, document: Document) -> None:
     write_text_atomic(path, serialize_document(document), mode=0o644)
+
+
+def move_to_trash(root: Path, path: PurePosixPath) -> PurePosixPath:
+    """Move a post file into the profile folder's trash, keeping its path."""
+    target = PurePosixPath(TRASH_DIR) / path
+    number = 2
+    while (root / target).exists():
+        target = target.with_name(f"{path.stem}-{number}{path.suffix}")
+        number += 1
+    (root / target).parent.mkdir(parents=True, exist_ok=True)
+    (root / path).rename(root / target)
+    return target
 
 
 def _post_files(posts_dir: Path) -> list[Path]:

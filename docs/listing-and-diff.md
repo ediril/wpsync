@@ -67,6 +67,7 @@ wpsync diff "Hello World"   # one post, by title
 wpsync diff new-idea.md     # one post, by file name in any folder
 wpsync diff content/new-idea.md   # one post, by path
 wpsync diff -a       # also list unchanged posts
+wpsync diff -p       # show what push -p would move to the trash
 wpsync --legend      # explain the diff and ls symbols
 ```
 
@@ -87,5 +88,8 @@ locally, to check whether they also changed on WordPress since the last sync,
 and for new files, to check their slugs and titles against existing posts. A
 taken slug is a conflict (`?`); a shared title is noted, since push asks before
 creating a second post with the same title.
+With `-p`, it also checks each post whose file you deleted: unchanged on
+WordPress, it shows as `- l` and `push -p` trashes it; changed there since the
+last sync, it is a conflict (`?`), since `push -p` asks first.
 With no local changes it works offline. Posts created or edited on WordPress
 appear only through `pull`.

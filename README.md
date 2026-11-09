@@ -63,11 +63,13 @@ wpsync open idea                         # open a post in your editor
 wpsync pull                              # bring changes from the blog
 wpsync diff                              # what push would change, read-only
 wpsync push hello                        # send one post
+wpsync delete hello                      # trash a post and move its file to .trash/
 ```
 
 A new post is private until you set `status: public` in its header. Pull asks
 before replacing a file you edited, and push asks before replacing a post that
-also changed on WordPress. Push never deletes anything on the blog.
+also changed on WordPress. Push deletes nothing on the blog unless you pass
+`-p`, which moves posts whose files you deleted to the WordPress trash.
 
 ## Documentation
 
@@ -77,7 +79,8 @@ also changed on WordPress. Push never deletes anything on the blog.
   the header and body format, images, starting a post, and opening it in an
   editor.
 - [Pull and push](https://github.com/ediril/wpsync/blob/main/docs/push-and-pull.md):
-  what each changes, how they protect local and remote work, and when they ask.
+  what each changes, how they protect local and remote work, when they ask,
+  and deleting posts.
 - [Listing posts and diff](https://github.com/ediril/wpsync/blob/main/docs/listing-and-diff.md):
   `ls`, `show`, issues, and `diff`'s status markers.
 - [Development and maintenance](https://github.com/ediril/wpsync/blob/main/docs/development.md):

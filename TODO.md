@@ -1,11 +1,10 @@
 # Work Queue
 
-- [ ] `diff -p POST`: show the text difference push would make, comparing the
+- [ ] `diff -t POST`: show the text difference push would make, comparing the
   file with the current post converted to Markdown.
 - [ ] `diff` shows a post push would skip for a missing local image or an image
   outside the profile folder; today only push finds these. Also report
   Obsidian-style `![[image]]` embeds, which push would send as plain text.
-- [ ] Remote deletion command that moves a post to the WordPress trash.
 - [ ] Characterize against the user's real blogs: `init` and first-pull
   sign-in, read-only pull and diff first, then push to a blog the user
   designates. Confirm `wpautop` handling, oEmbed URLs, and the

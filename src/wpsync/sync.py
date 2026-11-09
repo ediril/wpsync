@@ -165,6 +165,16 @@ class PushStep:
 
 
 @dataclass(frozen=True)
+class TrashStep:
+    """What a pruning push does for a post whose file was deleted."""
+
+    target: str
+    gone: bool = False
+    """The post is already off WordPress, so only its record is dropped."""
+    question: str | None = None
+
+
+@dataclass(frozen=True)
 class DiffEntry:
     action: Action
     side: str
@@ -172,7 +182,7 @@ class DiffEntry:
     post_id: str | None
     path: PurePosixPath
     detail: str = ""
-    step: PushStep | None = None
+    step: PushStep | TrashStep | None = None
     """None when a push leaves the post alone."""
 
 
@@ -203,8 +213,11 @@ def _typo_notes(document: LocalDocument) -> list[str]:
     return notes
 
 
-def compare(selection: Selection, remote: Remote) -> Diff:
-    """Classify the selected posts, contacting the remote only when needed."""
+def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
+    """Classify the selected posts, contacting the remote only when needed.
+
+    With prune, a post whose file was deleted is moved to the trash.
+    """
     entries: list[DiffEntry] = []
     changed: dict[str, tuple[LocalDocument, list[str]]] = {}
     unlinked: list[LocalDocument] = []
@@ -233,20 +246,36 @@ def compare(selection: Selection, remote: Remote) -> Diff:
             changed[post_id] = (document, changes)
         else:
             entries.append(DiffEntry(Action.UNCHANGED, "", post_id, path))
-    for post_id, record in selection.records.items():
-        if post_id not in present:
-            entries.append(
-                DiffEntry(
-                    Action.DELETED,
-                    "l",
-                    post_id,
-                    record.path,
-                    "deleted locally; WordPress keeps the post",
-                )
+    deleted = [
+        record
+        for post_id, record in selection.records.items()
+        if post_id not in present
+    ]
+    if not prune:
+        entries.extend(
+            DiffEntry(
+                Action.DELETED,
+                "l",
+                record.post_id,
+                record.path,
+                "deleted locally; WordPress keeps the post",
             )
+            for record in deleted
+        )
+        deleted = []
 
-    ids = sorted({*changed, *(d.document.post_id for d in unlinked)}, key=int)
+    ids = sorted(
+        {
+            *changed,
+            *(d.document.post_id for d in unlinked),
+            *(record.post_id for record in deleted),
+        },
+        key=int,
+    )
     states = remote.post_states(ids) if ids else {}  # type: ignore[arg-type]
+    entries.extend(
+        _trash_entry(record, states.get(record.post_id)) for record in deleted
+    )
     for post_id, (document, changes) in changed.items():
         record = selection.records[post_id]
         state = states.get(post_id)
@@ -322,10 +351,48 @@ def compare(selection: Selection, remote: Remote) -> Diff:
     return Diff(entries, notes)
 
 
+def _trash_entry(record: PostRecord, state: RemoteState | None) -> DiffEntry:
+    post_id, path = record.post_id, record.path
+    if state is None:
+        return DiffEntry(
+            Action.DELETED,
+            "l",
+            post_id,
+            path,
+            "deleted locally and on WordPress",
+            TrashStep(post_id, gone=True),
+        )
+    if state.fingerprint != record.remote_fingerprint:
+        question = (
+            f"#{post_id} {path} was deleted locally but changed on WordPress. "
+            "Move the post to the trash anyway?"
+        )
+        return DiffEntry(
+            Action.CONFLICT,
+            "",
+            post_id,
+            path,
+            "deleted locally; changed on WordPress since the last sync",
+            TrashStep(post_id, question=question),
+        )
+    return DiffEntry(
+        Action.DELETED,
+        "l",
+        post_id,
+        path,
+        "deleted locally; push -p moves the post to the trash",
+        TrashStep(post_id),
+    )
+
+
 def _require_title(entry: DiffEntry) -> DiffEntry:
     """A post push would publish or update cannot go without a title."""
     step = entry.step
-    if step is None or step.unpublish or step.document.document.post.title.strip():
+    if (
+        not isinstance(step, PushStep)
+        or step.unpublish
+        or step.document.document.post.title.strip()
+    ):
         return entry
     return replace(
         entry, action=Action.CONFLICT, detail="no title; push needs one", step=None

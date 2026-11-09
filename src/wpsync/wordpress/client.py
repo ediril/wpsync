@@ -145,17 +145,25 @@ class WordPressClient:
         self.http.close()
 
     def get(self, route: str, params: dict[str, Any] | None = None) -> httpx.Response:
-        response = request(self.http, "GET", route_url(self.api_root, route, params))
-        if response.is_error:
-            raise WordPressError(_error_message(response))
-        return response
+        return self._call("GET", route, params)
 
     def post(
         self, route: str, params: dict[str, Any] | None = None, **options: Any
     ) -> httpx.Response:
-        response = request(
-            self.http, "POST", route_url(self.api_root, route, params), **options
-        )
+        return self._call("POST", route, params, **options)
+
+    def delete(self, route: str) -> httpx.Response:
+        return self._call("DELETE", route, None)
+
+    def _call(
+        self,
+        method: str,
+        route: str,
+        params: dict[str, Any] | None,
+        **options: Any,
+    ) -> httpx.Response:
+        url = route_url(self.api_root, route, params)
+        response = request(self.http, method, url, **options)
         if response.is_error:
             raise WordPressError(_error_message(response))
         return response

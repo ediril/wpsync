@@ -55,9 +55,14 @@
   back into new files, uploads local images, turns a published post made private
   into a draft, and asks before replacing a matched or remotely changed post,
   duplicating a title, converting a block post, or creating terms. It skips a
-  post without a title and never deletes anything.
+  post without a title.
 - `scripts/publish.sh [--prepare]` builds, checks, and publishes releases to
   PyPI.
+- `delete ID|SLUG` moves a post to the WordPress trash and its file into the
+  profile folder's `.trash/`, asking first, and stops tracking the post.
+- `push -p` / `--prune` moves posts whose files you deleted to the WordPress
+  trash, asking first for a post that changed on WordPress since the last sync;
+  `diff -p` previews it. Without `-p`, push still deletes nothing.
 
 ### Changed
 

@@ -153,6 +153,9 @@ class StateWriter:
             ),
         )
 
+    def forget(self, post_id: str) -> None:
+        self.connection.execute("DELETE FROM posts WHERE post_id = ?", (post_id,))
+
     def save_media(self, record: MediaRecord) -> None:
         self.connection.execute(
             "INSERT OR REPLACE INTO media VALUES (?, ?, ?, ?, ?)",

@@ -27,9 +27,11 @@ from wpsync.config import (
 )
 from wpsync.documents import (
     CONTENT_DIR,
+    TRASH_DIR,
     Document,
     DocumentError,
     LocalDocument,
+    move_to_trash,
     scan_documents,
     write_document,
 )
@@ -37,7 +39,13 @@ from wpsync.editors import Editor, EditorError, editor_command, launch
 from wpsync.posts import Post, PostStatus, PostSummary, RemoteState
 from wpsync.pull import Puller
 from wpsync.push import Pusher
-from wpsync.state import PostRecord, StateError, read_media, read_records
+from wpsync.state import (
+    PostRecord,
+    StateError,
+    read_media,
+    read_records,
+    write_state,
+)
 from wpsync.sync import Action, DiffEntry, SelectionError, compare, select
 from wpsync.wordpress.client import WordPressClient, WordPressError, discover_api_root
 from wpsync.wordpress.remote import WordPressRemote
@@ -57,6 +65,7 @@ COMMANDS = (
     "diff",
     "pull",
     "push",
+    "delete",
 )
 PROFILE_AWARE_COMMANDS = frozenset(
     {
@@ -71,6 +80,7 @@ PROFILE_AWARE_COMMANDS = frozenset(
         "diff",
         "pull",
         "push",
+        "delete",
     }
 )
 NO_POSTS = "No posts here yet. Run wpsync pull, or add Markdown files under content/."
@@ -87,7 +97,7 @@ MARKER_COLORS = {
 LEGEND = (
     ("+ l", "new local post; push creates it"),
     ("~ l", "changed locally; push updates the post"),
-    ("- l", "deleted locally; WordPress keeps the post"),
+    ("- l", "deleted locally; WordPress keeps it unless push -p trashes it"),
     ("?  ", "conflict or ambiguous match; push stops and asks"),
     ("=  ", "unchanged (shown with -a)"),
     ("x l", "private; push never sends it (shown with -a)"),
@@ -357,10 +367,14 @@ def build_parser() -> argparse.ArgumentParser:
     diff = subparsers.add_parser(
         "diff",
         help="show what push would change",
-        usage="wpsync diff [ID|SLUG] [-a]\n       wpsync PROFILE diff [ID|SLUG] [-a]",
+        usage=(
+            "wpsync diff [ID|SLUG] [-a] [-p]\n"
+            "       wpsync PROFILE diff [ID|SLUG] [-a] [-p]"
+        ),
         description=(
             "Show local changes and anything that would stop a push. Contacts the "
-            "blog only for changed or new posts. A title or file also selects a post."
+            "blog only for changed, new, or, with -p, deleted posts. A title or file "
+            "also selects a post."
         ),
     )
     diff.add_argument(
@@ -369,23 +383,54 @@ def build_parser() -> argparse.ArgumentParser:
     diff.add_argument(
         "-a", "--all", action="store_true", help="also show unchanged posts"
     )
+    diff.add_argument(
+        "-p",
+        "--prune",
+        action="store_true",
+        help="show what push -p would move to the trash",
+    )
 
     push = subparsers.add_parser(
         "push",
         help="send local posts to the blog",
-        usage="wpsync push [ID|SLUG] [-y]\n       wpsync PROFILE push [ID|SLUG] [-y]",
+        usage=(
+            "wpsync push [ID|SLUG] [-p] [-y]\n"
+            "       wpsync PROFILE push [ID|SLUG] [-p] [-y]"
+        ),
         description=(
             "Create and update posts on the blog from changed local files. Publishes "
             "public posts and never sends private ones, except to turn a published "
-            "post that became private into a draft. A title or file also selects a "
-            "post."
+            "post that became private into a draft. Deletes nothing unless -p is "
+            "given. A title or file also selects a post; select a deleted file's "
+            "post by its ID."
         ),
     )
     push.add_argument(
         "post", nargs="?", metavar="ID|SLUG", help="one post; all when omitted"
     )
     push.add_argument(
+        "-p",
+        "--prune",
+        action="store_true",
+        help="move posts whose files were deleted to the WordPress trash",
+    )
+    push.add_argument(
         "-y", "--yes", action="store_true", help="answer yes to every question"
+    )
+
+    delete = subparsers.add_parser(
+        "delete",
+        help="trash a post on the blog and move its file to .trash/",
+        usage="wpsync delete ID|SLUG [-y]\n       wpsync PROFILE delete ID|SLUG [-y]",
+        description=(
+            "Move a post to the WordPress trash, where it can be restored, and its "
+            "file into the profile folder's .trash/ folder, keeping its path. Asks "
+            "first. A title or file also selects the post."
+        ),
+    )
+    delete.add_argument("post", metavar="ID|SLUG", help="the post")
+    delete.add_argument(
+        "-y", "--yes", action="store_true", help="delete without asking"
     )
 
     pull = subparsers.add_parser(
@@ -737,8 +782,8 @@ def _fit(line: str, columns: int) -> str:
 
 def _one_post(
     arguments: argparse.Namespace, session: _Session
-) -> tuple[Path, LocalDocument, dict[str, PostRecord]]:
-    """The profile folder, the file of the post a command names, and the records."""
+) -> tuple[Profile, LocalDocument, dict[str, PostRecord]]:
+    """The profile, the file of the post a command names, and the records."""
     profile, base = _profile_root(arguments, session)
     root = profile.local_root
     records = read_records(root, profile.api_root)
@@ -747,7 +792,7 @@ def _one_post(
     )
     if not selection.documents:
         raise SelectionError(f"post {arguments.post} has no local file")
-    return root, selection.documents[0], records
+    return profile, selection.documents[0], records
 
 
 def _show(arguments: argparse.Namespace, session: _Session) -> str:
@@ -785,7 +830,7 @@ def _diff(arguments: argparse.Namespace, session: _Session) -> str:
     )
     remote = _LazyRemote(profile, session)
     try:
-        result = compare(selection, remote)
+        result = compare(selection, remote, arguments.prune)
     finally:
         remote.close()
     if not result.entries:
@@ -841,7 +886,8 @@ def _pull_target(
 
 
 def _open(arguments: argparse.Namespace, session: _Session) -> str:
-    root, item, _ = _one_post(arguments, session)
+    profile, item, _ = _one_post(arguments, session)
+    root = profile.local_root
     configuration = session.store.load()
     editor = configuration.editor
     if editor is None:
@@ -850,6 +896,56 @@ def _open(arguments: argparse.Namespace, session: _Session) -> str:
         session.store.save(configuration)
     session.launch(editor_command(editor, root, root / item.path))
     return f"Opened {item.path} in {editor.label}."
+
+
+def _delete(arguments: argparse.Namespace, session: _Session) -> str:
+    profile, item, records = _one_post(arguments, session)
+    root = profile.local_root
+    path = PurePosixPath(item.path)
+    post_id = item.document.post_id
+    record = records.get(post_id) if post_id else None
+    if post_id is not None and record is None:
+        raise SelectionError(
+            f"{path} has id {post_id} but was never synced here; pull it first"
+        )
+    confirm = _confirmer(session, arguments.yes)
+    declined = "Nothing deleted." + (
+        "" if arguments.yes else " Rerun with --yes to delete it."
+    )
+    if record is None:
+        if not confirm(f"{path} is not on WordPress. Move it to {TRASH_DIR}/?"):
+            return declined
+        return f"Moved {path} to {move_to_trash(root, path)}."
+    post_id = record.post_id
+    lazy = _LazyRemote(profile, session)
+    try:
+        state = lazy.post_states([post_id]).get(post_id)
+        title = item.document.post.title
+        question = (
+            f"Move #{post_id} {title!r} to the WordPress trash and {path} to "
+            f"{TRASH_DIR}/?"
+        )
+        if state is None:
+            question = (
+                f"#{post_id} is already gone from WordPress. "
+                f"Move {path} to {TRASH_DIR}/?"
+            )
+        elif state.fingerprint != record.remote_fingerprint:
+            question = (
+                f"#{post_id} changed on WordPress since the last sync. {question}"
+            )
+        if not confirm(question):
+            return declined
+        if state is not None:
+            WordPressRemote(lazy.connect(), session.transport).trash(post_id)
+    finally:
+        lazy.close()
+    trashed = move_to_trash(root, path)
+    with write_state(root, profile.api_root) as writer:
+        writer.forget(post_id)
+    if state is None:
+        return f"#{post_id} was already gone from WordPress. Moved {path} to {trashed}."
+    return f"Moved #{post_id} to the WordPress trash and {path} to {trashed}."
 
 
 def _editor(arguments: argparse.Namespace, session: _Session) -> str:
@@ -956,7 +1052,7 @@ def _push(arguments: argparse.Namespace, session: _Session) -> str:
         return opened[0]
 
     try:
-        plan = compare(selection, lazy)
+        plan = compare(selection, lazy, arguments.prune)
         for note in plan.notes:
             print(f"Note: {note}", file=session.stdout, flush=True)
         pusher = Pusher(
@@ -994,6 +1090,7 @@ HANDLERS = {
     "diff": _diff,
     "pull": _pull,
     "push": _push,
+    "delete": _delete,
 }
 
 

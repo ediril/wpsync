@@ -61,6 +61,7 @@ will do; both come from the same plan.
 wpsync push          # every post
 wpsync push 123      # one post, by ID
 wpsync push hello    # one post, by slug, title, or file
+wpsync push -p       # also trash posts whose files you deleted
 wpsync push -y       # answer yes to every question
 ```
 
@@ -83,7 +84,11 @@ Pushed 2 posts (1 new, 1 updated), 1 image; 1 skipped. Rerun with --yes to accep
   markup. An image file you replace is uploaded again. See
   [Images](post-files.md#images) for where image files can live.
 - A post without a title is skipped.
-- Push never deletes anything on the blog.
+- Push deletes nothing on the blog unless you pass `-p` / `--prune`. With it,
+  each post whose file you deleted moves to the WordPress trash, where it stays
+  for 30 days and can be restored from the dashboard. WPSync stops tracking
+  the post. Preview this with `wpsync diff -p`. To choose one deleted file's
+  post, use its ID: `wpsync push -p 123`.
 
 Push asks first, defaulting to no, before it would:
 
@@ -91,9 +96,35 @@ Push asks first, defaulting to no, before it would:
   synced. Declining creates nothing, since WordPress would change the slug.
 - create a second post with the same title.
 - replace a post that also changed on WordPress.
+- trash a post that changed on WordPress since the last sync.
 - turn a block-editor post into plain HTML.
 - create categories or tags the blog does not have.
 
 Without a terminal, every question counts as no. If WordPress stores different
 content than it was sent, usually because the account lacks `unfiltered_html`, the
 post's line says so.
+
+## Deleting posts
+
+`delete` removes one post from the blog and from your folder:
+
+```console
+wpsync delete hello      # by slug, ID, file name, or title
+wpsync delete hello -y   # without asking
+```
+
+It asks first, and says so if the post changed on WordPress since the last
+sync. On yes, the post moves to the WordPress trash, where it stays for 30 days
+and can be restored from the dashboard. The file moves into `.trash/` in the
+profile folder, keeping its path, so `content/2019/hello.md` becomes
+`.trash/content/2019/hello.md`, with `-2` added if that name is taken. WPSync
+stops tracking the post. Images stay where they are, since other posts may
+show them, and `.trash/` is never emptied for you.
+
+A file without an `id` was never on the blog, so `delete` only moves it to
+`.trash/`. To undo a delete, restore the post from the WordPress trash and move
+the file back into `content/`. WordPress restores the post as a draft, so the
+next pull asks before linking it to the file.
+
+Deleting a file yourself instead leaves the post on the blog until you run
+`wpsync push -p`.

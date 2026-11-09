@@ -34,6 +34,8 @@ class FakeWordPress:
         self.saved = []
         """The JSON body of each post create or update, in order."""
         self.uploads = []
+        self.trashed = []
+        """Posts moved to the trash, which listings leave out as WordPress does."""
         self.rewrite_content = lambda content: content
         """Stands in for filters such as kses, which change what WordPress stores."""
         self.posts = [
@@ -139,6 +141,11 @@ class FakeWordPress:
         route = self.route(request)
         if request.method == "POST":
             return self.write(route, request)
+        if request.method == "DELETE":
+            post = self.post(route.rsplit("/", 1)[1])
+            self.posts.remove(post)
+            self.trashed.append({**post, "status": "trash"})
+            return httpx.Response(200, json=self.trashed[-1])
         if route is None or not self.advertises_api:
             link = f'<{self.api_root}>; rel="https://api.w.org/"'
             headers = {"Link": link} if self.advertises_api else {}

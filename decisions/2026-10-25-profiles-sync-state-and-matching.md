@@ -111,8 +111,13 @@ Every prompt defaults to No. `-y` / `--yes` answers yes to every prompt within
 the selected files. When no terminal can answer, a prompt counts as No and the
 message names `--yes`.
 
-Remote deletion is a separate command that moves the post to the WordPress
-trash. Pull never deletes local files.
+Push deletes nothing on WordPress unless `-p` / `--prune` is given, as in
+HLSync. With it, a post whose file was deleted moves to the WordPress trash,
+which keeps it restorable, and its record is dropped. A post that changed on
+WordPress since the last sync is a conflict that asks first. `delete` does
+both sides for one post: it trashes the post on WordPress, moves the file into
+the profile folder's `.trash/`, and drops the record. Pull never deletes local
+files.
 
 ## Rationale
 

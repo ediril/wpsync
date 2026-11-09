@@ -146,6 +146,10 @@ class WordPressRemote:
         params = {"context": "edit", "_fields": PULL_FIELDS}
         return self._fetched(self.client.post(route, params, json=body).json())
 
+    def trash(self, post_id: str) -> None:
+        # Without force, WordPress moves the post to the trash instead of deleting it.
+        self.client.delete(f"wp/v2/posts/{post_id}")
+
     def keeps_display(self, sent: str, stored: str) -> bool:
         return same_display(sent, stored)
 

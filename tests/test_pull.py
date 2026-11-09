@@ -171,9 +171,7 @@ def test_a_file_that_pull_would_only_fill_in_is_linked_without_asking(tmp_path, 
     assert "categories:\n- News\n" in path.read_text()
 
 
-def test_linking_an_identical_file_still_downloads_the_images_it_shows(
-    tmp_path, store
-):
+def test_linking_an_identical_file_still_downloads_the_images_it_shows(tmp_path, store):
     wordpress = blog()
     add_profile(store, "myblog", tmp_path)
     pull(store, wordpress)

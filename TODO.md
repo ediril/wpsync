@@ -10,8 +10,8 @@
   sign-in, read-only pull and diff first, then push to a blog the user
   designates. Confirm `wpautop` handling, oEmbed URLs, and the
   HTML filter for users without `unfiltered_html`.
-- [ ] README: installation, profiles, the sync workflow, prompts, and known
-  limitations, kept current as each command lands.
+- [ ] README and `docs/`: the sync workflow, prompts, and known limitations,
+  kept current as each command lands.
 - [ ] `tag` command: list tags with post counts, show or change one post's tags
   (`+tag`, `-tag`), and filter `ls` by tag. Edits local files only; push sends
   the changes. Decide whether it also handles categories. This lets a command

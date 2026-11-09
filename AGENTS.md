@@ -24,7 +24,8 @@
   state must stay platform-neutral.
 - WPSync shares UX philosophy and CLI conventions (profiles, current-directory
   inference, environment-variable credentials) with HLSync (`../hlsync`) but
-  no code or dependencies. Check HLSync's README before designing a command.
+  no code or dependencies. Check HLSync's README and `docs/` before designing a
+  command.
   One deliberate difference: `init` creates a profile where HLSync uses
   `create`, because the user has other plans for `wpsync create`.
 - Python 3.11+, packaged with uv; tests run with `uv run pytest`.
@@ -113,11 +114,13 @@
   current rationale: model boundaries, safety guarantees, dependencies, or
   consequential tradeoffs. Do not create or update decision files for version
   formats, CLI spelling, symbols, column order, indentation, progress wording,
-  or other small behavior changes. Document current usage in README and explain
-  those changes in commit messages. Consolidate related architectural rationale
+  or other small behavior changes. Document current usage in README and `docs/`
+  and explain those changes in commit messages. Consolidate related architectural rationale
   into existing notes; Git preserves obsolete decisions and minor change history.
 - Use `plans/` only for future work/roadmaps, not decisions already made.
 - Use `social/` for public-facing post drafts or demo narration.
-- Keep `README.md` current and avoid stale claims.
+- Keep `README.md` short and introductory, like HLSync's: installation, a quick
+  start, everyday commands, and links to `docs/` pages that hold the detailed
+  usage. Keep both current and avoid stale claims.
 - Capture durable working and documentation directives here. Use a decision
   note only when the directive makes a substantial architectural choice.

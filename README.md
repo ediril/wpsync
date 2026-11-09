@@ -5,8 +5,16 @@ Markdown files: map a folder to a blog, pull its posts, edit them in any
 editor, preview the differences, and push the changes back. WordPress is the
 first supported platform.
 
-WPSync is pre-alpha software. Profiles, pull, diff, and push work today; see
-`TODO.md` for what remains.
+WPSync is pre-alpha software. Profiles, pull, diff, and push work today;
+commands and the post file format may change before a stable release.
+
+## Who is it for?
+
+WPSync is for people who would rather write blog posts in a Markdown editor,
+such as VS Code or Obsidian, than in the WordPress editor.
+
+Your files are the source of truth. Keep them in Git, edit them offline, and see
+exactly what a push will change before anything reaches the blog.
 
 ## Installation
 
@@ -22,373 +30,71 @@ Upgrade later with:
 uv tool upgrade wpsync
 ```
 
-## Credentials
+## Quick start
 
-WPSync signs in with a WordPress Application Password, which you create in the
-WordPress dashboard under **Users > Profile > Application Passwords**.
-Application Passwords require the site to use HTTPS.
-
-WPSync reads the password from an environment variable and never stores it. The
-variable name comes from the profile name: profile `myblog` reads
-`MYBLOG_WP_PASSWORD`. Choose a different variable with `--password-env` when
-creating the profile.
-
-## Profiles
-
-A profile maps one local folder to one blog. Profiles are stored in
-`~/.wpsync/config.json`. Folders may not overlap between profiles.
+WPSync signs in with a WordPress Application Password, created in the WordPress
+dashboard under **Users > Profile > Application Passwords**; the site must use
+HTTPS. WPSync reads the password from an environment variable named after the
+profile and never stores it.
 
 From the folder you want to use for the blog:
 
 ```console
 wpsync init myblog --site https://example.com --username emrah
 export MYBLOG_WP_PASSWORD='abcd efgh ijkl mnop qrst uvwx'
-wpsync pull
+wpsync pull              # download posts and images into content/
+wpsync open hello-world  # edit a post in Obsidian or VS Code
+wpsync diff              # see what push would change
+wpsync push              # send the changes to the blog
 ```
 
-`init` checks that the address is a WordPress site and saves the profile
-without signing in. It offers the current directory as the profile's folder;
-press Enter to accept it, or decline to name another. Use `--local-root PATH`
-to name it directly, and omit `-u`/`--username` to be prompted. The username is
-your WordPress login name or email address. A blog installed in a subfolder,
-such as `https://example.com/blog`, works like any other.
+`init` proposes the current directory as the profile's folder; pressing Enter
+accepts it. Each post becomes a Markdown file under `content/` with a YAML
+header, and its images go in `content/images/`.
 
-The first `pull` downloads every post and its images (see
-[Pulling posts](#pulling-posts)). It also says which account signed in and
-notes any limits: an account that can edit only its own posts, such as an
-Author, does not see other authors' posts.
-
-Commands run inside a profile's folder, or any folder below it, use that
-profile automatically. Elsewhere, put the profile name before the command:
+## Everyday commands
 
 ```console
-wpsync pull              # bring changes from the blog
-wpsync myblog pull       # the same, from any directory
-wpsync profiles          # list profiles; * marks the current one
-wpsync profile --details # show the current profile's settings
-wpsync root myblog       # print the profile's folder
-wpsync map --local-root /new/folder   # move the profile to another folder
-wpsync remove myblog     # remove the profile only
+wpsync profiles                          # list profiles; * marks the current one
+wpsync ls                                # local posts, without contacting the blog
+wpsync show hello                        # one post's details and issues
+wpsync create drafts/idea -t "An idea"   # start a new private post
+wpsync open idea                         # open a post in your editor
+wpsync pull                              # bring changes from the blog
+wpsync diff                              # what push would change, read-only
+wpsync push hello                        # send one post
 ```
 
-`map` asks for confirmation and only changes the local folder. A different
-blog needs its own profile, because synchronization state belongs to one blog.
-`remove` deletes only the profile; local files and the blog stay unchanged.
+A new post is private until you set `status: public` in its header. Pull asks
+before replacing a file you edited, and push asks before replacing a post that
+also changed on WordPress. Push never deletes anything on the blog.
 
-Commands may be shortened to any unique prefix, such as `wpsync di`.
+## Documentation
 
-## Post files
+- [Profiles and credentials](https://github.com/ediril/wpsync/blob/main/docs/profiles.md):
+  Application Passwords, profiles, and running commands from anywhere.
+- [Post files](https://github.com/ediril/wpsync/blob/main/docs/post-files.md):
+  the header and body format, images, starting a post, and opening it in an
+  editor.
+- [Pull and push](https://github.com/ediril/wpsync/blob/main/docs/push-and-pull.md):
+  what each changes, how they protect local and remote work, and when they ask.
+- [Listing posts and diff](https://github.com/ediril/wpsync/blob/main/docs/listing-and-diff.md):
+  `ls`, `show`, issues, and `diff`'s status markers.
+- [Development and maintenance](https://github.com/ediril/wpsync/blob/main/docs/development.md):
+  testing local changes, switching installs, and releasing.
 
-Each post is a Markdown file under the profile folder's `content/` directory, in
-any subfolder. Everything else in the profile folder is yours: WPSync reads only
-`.md` files under `content/`, and skips files and folders whose names start
-with a dot. The file starts with a YAML header:
+## Command behavior
 
-```markdown
----
-id: 123
-title: Hello world
-slug: hello-world
-date: 2026-10-01T09:30:00+02:00
-status: public
-categories:
-- News
-tags:
-- python
----
+Commands accept any unique prefix, such as `wpsync di`. An ambiguous prefix
+fails and lists the commands it could mean.
 
-The post body in Markdown.
-```
-
-- `id` links the file to a WordPress post. Leave it out for a new post.
-- `title`, `slug`, and `date` are optional. A `date` needs a time zone offset
-  or `Z`.
-- `status` is `public` or `private`, and defaults to `private`. Push publishes
-  a public post; a public post with a future `date` is scheduled. Push never
-  sends a private post, except to turn a published post that became private
-  into a WordPress draft, which keeps its ID, comments, and address for when it
-  is made public again. Pull writes published posts as `public` and drafts,
-  scheduled, pending, and WordPress-private posts as `private`.
-- `categories` and `tags` are lists of names.
-
-The body is Markdown. Styling that plain Markdown cannot express uses
-Pandoc-style attributes, and only where a post has such styling:
-
-```markdown
-Some [red text]{style="color: #c00"} and [a link](https://example.com/){target=_blank}.
-
-{.has-text-align-right}
-A right-aligned paragraph.
-
-![Sunset](images/sunset.jpg "Caption"){.aligncenter}
-
-:::: {.wp-block-columns}
-::: {.wp-block-column}
-Left column.
-:::
-::::
-```
-
-A video or other embeddable URL alone in a paragraph is embedded by WordPress.
-Content with no Markdown form, such as galleries, stays in the file as its
-exact original HTML; WPSync never drops it. When plain HTML would not survive
-Markdown unchanged, it is wrapped in a raw HTML fence, which is published
-exactly as written:
-
-````markdown
-```{=html}
-<!-- wp:gallery -->
-<figure class="wp-block-gallery">…</figure>
-<!-- /wp:gallery -->
-```
-````
-
-Other header entries, such as `layout:` from another tool, stay in the file
-exactly as written and are never sent to WordPress. When WPSync rewrites a file,
-it writes its own fields in the order above, sorts category and tag names, and
-leaves other entries and their comments unchanged. Two files with the same `id`
-are an error.
-
-## Images
-
-An image's path is relative to the post file that shows it, as Markdown editors
-such as VS Code and Obsidian read it, so their previews show the image. Pull
-saves images in `content/images/`: a post in `content/` refers to
-`images/photo.png`, and one in `content/2019/` to `../images/photo.png`. An
-image you add can be anywhere in the profile folder, so an editor that saves
-pasted images next to the post works too. Moving a post into another folder
-breaks its relative image paths, as it does in any Markdown editor.
-
-In Obsidian, turn off **Use [[Wikilinks]]** and set **New link format** to
-**Relative path to file** under Settings, Files and links. WPSync reads standard
-Markdown images, `![alt](path)`, and sends `![[photo.png]]` as plain text.
-
-## Starting a post
-
-`create` starts a post file under `content/`. The title and slug can wait:
-
-```console
-wpsync create idea                             # content/idea.md
-wpsync create drafts/hello -t "Hello, World!"  # content/drafts/hello.md, with a title
-wpsync create hello -s hello-again             # choose the slug
-```
-
-```markdown
----
-title: ''
-status: private
-categories: []
-tags: []
----
-```
-
-A new post is private, so nothing is published until you set `status: public`
-and run `push`. Push skips a post with no title. Without a slug, WordPress
-assigns one when the post is created. `create` never overwrites a file and only
-touches local files.
-
-## Opening a post
-
-`open` opens a post's file in your Markdown editor, chosen by ID, slug, title,
-or file. Choose the editor with `editor`, which is saved in
-`~/.wpsync/config.json` for every profile. Without a name it asks, and so does
-`open` the first time if no editor is chosen:
-
-```console
-wpsync editor vscode     # or obsidian
-wpsync open hello
-```
-
-VS Code opens the file with the profile folder as its workspace, using the
-`code` command; on macOS without that command, it opens the Visual Studio Code
-app instead. Obsidian opens files only inside a vault, so open the profile
-folder, or a folder above it, as a vault first. Other editors are not supported
-yet.
-
-## Pulling posts
-
-`pull` brings the blog's posts into the profile folder: each post becomes
-`content/<slug>.md`, and images from the site's media library are downloaded into
-`content/images/` and referenced from the Markdown. The copy of an image that the post
-displays is downloaded, usually WordPress's resized `large` copy.
-
-If an image's file is gone from the server, or the server answers with something
-other than an image, pull lists it as `missing:` on the post's line and carries on. The
-Markdown refers to the image's local path as usual, and later pulls add the file if the
-server has it again. Any other download failure, such as a server error, stops
-the pull; rerun it to continue.
-
-Blank paragraphs and repeated line breaks, which only force vertical space in
-WordPress, are left out of the Markdown. The post keeps that spacing on the blog
-until you edit and push it.
-
-```console
-wpsync pull          # every post
-wpsync pull 123      # one post, by ID
-wpsync pull hello    # one post, by slug, including one not pulled yet
-wpsync pull -y       # answer yes to every question
-```
-
-```text
-+  123  content/hello-world.md  2 images
-~  145  content/release-notes.md
-?  150  content/about.md  changed on both sides; your file is unchanged
-+  160  content/gallery-tour.md  kept as HTML: core/gallery
-Pulled 3 posts (2 new, 1 updated), 2 images; 1 skipped. Rerun pull with --yes to accept the skipped changes.
-```
-
-Pull never loses local work:
-
-- A file you edited is replaced only after you confirm, and only when the post
-  also changed on WordPress. Without a terminal, or when you answer no, the
-  file is skipped.
-- A WordPress post with the same slug as a local file that has no `id` yet is
-  linked to that file, so pull does not create a duplicate. If WordPress's
-  version would change the file's title, content, or status, or a date,
-  category, or tag the file sets, pull asks first. A shared title alone does
-  not link them, because titles need not be unique.
-- A file you deleted is not restored, and a post deleted on WordPress keeps its
-  local file.
-- Header entries WPSync does not sync, such as `layout:`, are kept when a file
-  is updated.
-
-Dates are written in the blog's time zone. Images placed inside a line of text,
-rather than on their own, keep their WordPress address and are not downloaded.
-
-## Pushing posts
-
-`push` sends changed local files to the blog. Run `diff` first to see what it
-will do; both come from the same plan.
-
-```console
-wpsync push          # every post
-wpsync push 123      # one post, by ID
-wpsync push hello    # one post, by slug, title, or file
-wpsync push -y       # answer yes to every question
-```
-
-```text
-+  170  content/hello-world.md  1 image; https://example.com/hello-world/
-~  145  content/release-notes.md
-?  150  content/about.md  content; also changed on WordPress since the last sync
-Pushed 2 posts (1 new, 1 updated), 1 image; 1 skipped. Rerun with --yes to accept the skipped changes.
-```
-
-- A public file without an `id` creates a post. Push then writes the post's `id`,
-  slug, date, categories, and tags into the file, including anything WordPress
-  chose, such as a default category.
-- A changed file updates only the side that changed: editing the header never
-  replaces the post's content.
-- A private file is never sent, except that a published post made private becomes
-  a draft. Its ID, comments, and address are kept, and edits made in the meantime
-  are sent when it is made public again.
-- Local images are uploaded to the media library once and sent as WordPress image
-  markup. An image file you replace is uploaded again. See
-  [Images](#images) for where image files can live.
-- A post without a title is skipped.
-- Push never deletes anything on the blog.
-
-Push asks first, defaulting to no, before it would:
-
-- replace a post that has the same slug as a new file, or one this folder never
-  synced. Declining creates nothing, since WordPress would change the slug.
-- create a second post with the same title.
-- replace a post that also changed on WordPress.
-- turn a block-editor post into plain HTML.
-- create categories or tags the blog does not have.
-
-Without a terminal, every question counts as no. If WordPress stores different
-content than it was sent, usually because the account lacks `unfiltered_html`, the
-post's line says so.
-
-## Seeing what changed
-
-Local files are the source of truth. `ls` lists the posts in the profile folder
-without contacting the blog. On a terminal, it cuts lines to fit instead of
-letting them wrap:
-
-```console
-$ wpsync ls
-ID  Public        Issues  Title (file)
-67  *             2       Hurt (hurt.md)
- -                -       Idea (idea.md)
- -  *Jan 1, 2029  -       Later (later.md)
-```
-
-`wpsync ls -l` puts each post's file and its address on the blog, as of the last
-pull, on their own lines. If a line is cut, widen the terminal or pipe the output,
-which is never cut:
-
-```console
-$ wpsync ls -l
-ID  Public  Issues  Title
-67  *       2       Hurt
-                    content/hurt.md
-                    https://blog.test/hurt/
-```
-
-`Public` marks a public post with `*`, before its date if the post is scheduled
-and readers cannot see it yet; a private post has no mark. `Issues` counts what
-is wrong with a post; `show` says what, for one post chosen by ID, slug, file,
-or title:
-
-```console
-$ wpsync show hurt
-ID:         67
-Title:      Hurt
-Slug:       hurt
-Status:     public
-Date:       2025-11-04T10:00:00-05:00
-Categories: Notes
-Tags:       -
-File:       content/hurt.md
-URL:        https://blog.test/hurt/
-Issues:     2
-  missing file: https://blog.test/wp-content/uploads/2025/11/photo.png
-  missing file: https://blog.test/wp-content/uploads/2025/11/discussion.html
-```
-
-An issue is an image or embedded page that a pull found missing from the server.
-Pull tries missing files again each time. It checks the images it downloads and
-iframes showing uploaded files, when it pulls a post. It does not check images
-inside kept HTML, in a line of text, or on other sites, or uploads a post only
-links to.
-
-`diff` shows what a push would change and anything that would stop it:
-
-```console
-wpsync diff          # every post
-wpsync diff 123      # one post, by ID
-wpsync diff hello    # one post, by slug
-wpsync diff "Hello World"   # one post, by title
-wpsync diff content/new-idea.md   # one post, by file
-wpsync diff -a       # also list unchanged posts
-wpsync --legend      # explain the diff and ls symbols
-```
-
-```text
-~ l  123  content/hello-world.md  content; block post becomes plain HTML on push
-~ l  145  content/release-notes.md  details
-?    150  content/about.md  content; also changed on WordPress since the last sync
-- l  160  content/old.md  deleted locally; WordPress keeps the post
-+ l    -  content/new-idea.md  new post
-~ l  170  content/old-news.md  unpublish; becomes a draft on WordPress
-Not shown: 12 unchanged, 3 private (-a to show)
-```
-
-`content` means the body changed and `details` means a header field changed.
-Private posts (`x l`) are listed with `-a`; their edits stay local.
-`diff` never changes anything. It contacts the blog only for posts that changed
-locally, to check whether they also changed on WordPress since the last sync,
-and for new files, to check their slugs and titles against existing posts. A
-taken slug is a conflict (`?`); a shared title is noted, since push asks before
-creating a second post with the same title.
-With no local changes it works offline. Posts created or edited on WordPress
-appear only through `pull`.
+Use `wpsync -h` and `wpsync COMMAND -h` for built-in help, and `wpsync --legend`
+for the diff and ls symbols. `wpsync -v` and `wpsync --version` print the
+installed version.
 
 ## License
 
-WPSync is source-available under the [PolyForm Strict License 1.0.0](LICENSE).
+WPSync is source-available under the [PolyForm Strict License 1.0.0](https://github.com/ediril/wpsync/blob/main/LICENSE).
 Use is free of charge for the purposes permitted by that license, including:
 
 - Any noncommercial purpose.
@@ -408,8 +114,3 @@ Contact [Emrah Diril](mailto:emrah@diril.org) for pricing and a commercial
 agreement before beginning such use.
 
 WPSync is source-available, not open source.
-
-## Development
-
-[Development and maintenance](https://github.com/ediril/wpsync/blob/main/docs/development.md)
-covers testing local changes, switching installs, and releasing.

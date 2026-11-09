@@ -194,8 +194,8 @@ wpsync open hello
 ```
 
 VS Code opens the file with the profile folder as its workspace, using the
-`code` command; if it is missing, run **Shell Command: Install 'code' command in
-PATH** in VS Code. Obsidian opens files only inside a vault, so open the profile
+`code` command; on macOS without that command, it opens the Visual Studio Code
+app instead. Obsidian opens files only inside a vault, so open the profile
 folder, or a folder above it, as a vault first. Other editors are not supported
 yet.
 

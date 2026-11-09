@@ -1,9 +1,13 @@
+import subprocess
+import sys
 from urllib.parse import quote
 
+import pytest
 from wordpress_fake import Terminal, add_profile, invoke
 
+from wpsync import editors
 from wpsync.documents import Document, write_document
-from wpsync.editors import URL_OPENER, Editor
+from wpsync.editors import URL_OPENER, Editor, EditorError
 from wpsync.posts import Post
 
 
@@ -71,3 +75,22 @@ def test_obsidian_opens_a_file_in_a_vault_by_its_path(tmp_path, store):
 
     url = "obsidian://open?path=" + quote(str(path.resolve()), safe="")
     assert launched == [[*URL_OPENER, url]]
+
+
+def test_launch_finds_the_program_on_path_or_vs_code_as_a_mac_app(monkeypatch):
+    found = {"code": "/opt/bin/code.cmd"}
+    ran = []
+    monkeypatch.setattr(editors.shutil, "which", found.get)
+    monkeypatch.setattr(subprocess, "run", lambda command, check: ran.append(command))
+
+    editors.launch(["code", "/blog", "/blog/a.md"])
+    found.clear()
+    monkeypatch.setattr(sys, "platform", "darwin")
+    editors.launch(["code", "/blog", "/blog/a.md"])
+    with pytest.raises(EditorError, match="'xdg-open' is not on your PATH"):
+        editors.launch(["xdg-open", "obsidian://open"])
+
+    assert ran == [
+        ["/opt/bin/code.cmd", "/blog", "/blog/a.md"],
+        ["open", "-a", "Visual Studio Code", "/blog", "/blog/a.md"],
+    ]

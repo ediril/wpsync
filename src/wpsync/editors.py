@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import shutil
 import subprocess
 import sys
 from enum import StrEnum
@@ -25,9 +26,8 @@ class Editor(StrEnum):
 URL_OPENER = {"darwin": ["open"], "win32": ["cmd", "/c", "start", ""]}.get(
     sys.platform, ["xdg-open"]
 )
-INSTALL_HINTS = {
-    "code": "; in VS Code, run Shell Command: Install 'code' command in PATH"
-}
+# macOS apps that open the same arguments when their command is not installed.
+MAC_APPS = {"code": "Visual Studio Code"}
 
 
 def editor_command(editor: Editor, root: Path, file: Path) -> list[str]:
@@ -44,12 +44,25 @@ def editor_command(editor: Editor, root: Path, file: Path) -> list[str]:
 
 
 def launch(command: list[str]) -> None:
+    program, *arguments = command
+    # which() also finds Windows .cmd files, such as VS Code's code.cmd.
+    executable = shutil.which(program)
+    if executable is not None:
+        _run([executable, *arguments], f"'{program}'")
+    elif sys.platform == "darwin" and program in MAC_APPS:
+        app = MAC_APPS[program]
+        _run(
+            ["open", "-a", app, *arguments],
+            f"'{program}' is not on your PATH, and opening {app}",
+        )
+    else:
+        raise EditorError(f"'{program}' is not on your PATH")
+
+
+def _run(command: list[str], name: str) -> None:
     try:
         subprocess.run(command, check=True)
-    except FileNotFoundError as error:
-        hint = INSTALL_HINTS.get(command[0], "")
-        raise EditorError(f"'{command[0]}' is not on your PATH{hint}") from error
     except subprocess.CalledProcessError as error:
         raise EditorError(
-            f"'{command[0]}' failed with exit status {error.returncode}"
+            f"{name} failed with exit status {error.returncode}"
         ) from error

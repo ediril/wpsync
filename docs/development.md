@@ -10,10 +10,21 @@ uv run pytest
 uv run ruff check src tests
 ```
 
+## Running the checkout's `wpsync`
+
+`uv sync` installs `wpsync` into the project's `.venv` as an editable install.
+With that environment activated, `wpsync` runs the checkout's code as it is on
+disk, including uncommitted edits, without reinstalling.
+
+`wpsync --version` is fixed when the environment is built, so after a commit it
+shows the previous version until you run `uv sync` or any `uv run` command,
+which rebuilds it. Run `uv sync` after adding a dependency, too.
+
 ## Switching the installed `wpsync`
 
-To test unpublished changes with your installed `wpsync` command, switch it to
-your checkout. Run this from the repository root:
+To use the checkout's code from any terminal, without activating `.venv`,
+switch your installed `wpsync` command to the checkout instead. You need only
+one of the two. Run this from the repository root:
 
 ```console
 uv tool install --force --editable .

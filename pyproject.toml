@@ -58,9 +58,11 @@ line-length = 88
 select = ["E", "F", "I", "UP"]
 
 [tool.uv]
-# The version comes from version.json and Git history, so rebuild when they change.
+# The version comes from version.json, Git history, and the script that combines
+# them, so rebuild when any of them changes.
 cache-keys = [
   { file = "pyproject.toml" },
   { file = "version.json" },
+  { file = "build_backend/*.py" },
   { git = { commit = true } },
 ]

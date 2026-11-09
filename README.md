@@ -10,10 +10,16 @@ WPSync is pre-alpha software. Profiles, pull, diff, and push work today; see
 
 ## Installation
 
-WPSync requires Python 3.11 or newer. Install it from a checkout with uv:
+WPSync requires Python 3.11 or newer. Install it from PyPI with uv:
 
 ```console
-uv tool install --editable /path/to/wpsync/app
+uv tool install wpsync
+```
+
+Upgrade later with:
+
+```console
+uv tool upgrade wpsync
 ```
 
 ## Credentials
@@ -405,65 +411,5 @@ WPSync is source-available, not open source.
 
 ## Development
 
-See [`TODO.md`](TODO.md) for the ordered work queue and
-[`CHANGELOG.md`](CHANGELOG.md) for completed changes.
-
-```console
-uv sync
-uv run pytest
-uv run ruff check src tests
-```
-
-### Versions
-
-Versions use `<major>.<work-day>.<increment>` without leading zeroes and
-advance from Git history, not from the build date:
-
-- [`version.json`](version.json) gives the starting version of the history's
-  first commit.
-- Each later date with commits advances the work-day number by one, regardless
-  of how many idle days pass.
-- The increment counts the commits on the latest commit date, continuing from
-  the starting increment on the first day.
-
-Versions follow first-parent history, so commit dates must not go backwards.
-Wheels and source archives keep the computed version; installed commands do
-not use Git. `uv sync` rebuilds the development install when `version.json` or
-the current commit changes; a copy installed with `uv tool install` keeps its
-version until it is reinstalled. `wpsync --version` prints the installed version.
-
-### Releasing to PyPI
-
-Use a PyPI account with two-factor authentication and an API token. Twine reads
-credentials from `~/.pypirc` or `TWINE_USERNAME`/`TWINE_PASSWORD` and prompts
-if needed. Do not store the token in the repository.
-
-1. Commit everything to release. Preparation refuses a working tree with
-   uncommitted changes, because the version describes the last commit.
-2. With development dependencies installed (`uv sync`), run:
-
-   ```console
-   ./scripts/publish.sh
-   ```
-
-   The script uses the repository's `.venv/bin/python` when available,
-   otherwise `python3`; set `PYTHON` to select another interpreter. Through the
-   helpers in `scripts/helpers/`, it checks the release identity, runs lint and
-   tests, builds the wheel and source archive with `uv build`, checks their
-   metadata with Twine, installs the wheel into a clean environment to confirm
-   `wpsync --version`, and uploads both artifacts. Prepared artifacts are kept
-   in `dist/wpsync/<version>/` and reused if the script runs again for the same
-   version.
-
-   To prepare and validate artifacts without publishing, run
-   `./scripts/publish.sh --prepare`.
-
-3. Tag the release commit as `v<version>`, push the tag, and create a matching
-   GitHub Release. PyPI does not require a tag, but it records which source was
-   published.
-4. Install the published version in a clean environment and run
-   `wpsync --version` before announcing it.
-
-PyPI never lets a published version be replaced. If publication fails after
-PyPI accepted either artifact, make another commit (an empty commit is enough)
-and publish the new version.
+[Development and maintenance](https://github.com/ediril/wpsync/blob/main/docs/development.md)
+covers testing local changes, switching installs, and releasing.

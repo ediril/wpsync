@@ -152,8 +152,10 @@ class WordPressClient:
     ) -> httpx.Response:
         return self._call("POST", route, params, **options)
 
-    def delete(self, route: str) -> httpx.Response:
-        return self._call("DELETE", route, None)
+    def delete(
+        self, route: str, params: dict[str, Any] | None = None
+    ) -> httpx.Response:
+        return self._call("DELETE", route, params)
 
     def _call(
         self,

@@ -165,7 +165,7 @@ class PushStep:
 
 
 @dataclass(frozen=True)
-class TrashStep:
+class DeleteStep:
     """What a pruning push does for a post whose file was deleted."""
 
     target: str
@@ -182,7 +182,7 @@ class DiffEntry:
     post_id: str | None
     path: PurePosixPath
     detail: str = ""
-    step: PushStep | TrashStep | None = None
+    step: PushStep | DeleteStep | None = None
     """None when a push leaves the post alone."""
 
 
@@ -216,7 +216,7 @@ def _typo_notes(document: LocalDocument) -> list[str]:
 def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
     """Classify the selected posts, contacting the remote only when needed.
 
-    With prune, a post whose file was deleted is moved to the trash.
+    With prune, a post whose file was deleted is deleted from the blog.
     """
     entries: list[DiffEntry] = []
     changed: dict[str, tuple[LocalDocument, list[str]]] = {}
@@ -258,7 +258,6 @@ def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
                 "l",
                 record.post_id,
                 record.path,
-                "deleted locally; WordPress keeps the post",
             )
             for record in deleted
         )
@@ -359,13 +358,13 @@ def _trash_entry(record: PostRecord, state: RemoteState | None) -> DiffEntry:
             "l",
             post_id,
             path,
-            "deleted locally and on WordPress",
-            TrashStep(post_id, gone=True),
+            "already gone from WordPress",
+            DeleteStep(post_id, gone=True),
         )
     if state.fingerprint != record.remote_fingerprint:
         question = (
             f"#{post_id} {path} was deleted locally but changed on WordPress. "
-            "Move the post to the trash anyway?"
+            "Delete it from WordPress anyway?"
         )
         return DiffEntry(
             Action.CONFLICT,
@@ -373,15 +372,15 @@ def _trash_entry(record: PostRecord, state: RemoteState | None) -> DiffEntry:
             post_id,
             path,
             "deleted locally; changed on WordPress since the last sync",
-            TrashStep(post_id, question=question),
+            DeleteStep(post_id, question=question),
         )
     return DiffEntry(
         Action.DELETED,
         "l",
         post_id,
         path,
-        "deleted locally; push -p moves the post to the trash",
-        TrashStep(post_id),
+        "deletes on push",
+        DeleteStep(post_id),
     )
 
 

@@ -1,4 +1,4 @@
-from wordpress_fake import FakeWordPress, Terminal, add_profile, invoke
+from wordpress_fake import FakeWordPress, add_profile, invoke
 
 IMAGE = "https://blog.test/wp-content/uploads/2026/01/sunset-1024x768.jpg"
 
@@ -348,74 +348,3 @@ def test_content_wordpress_changes_when_saving_is_reported(tmp_path, store):
     _, output, _ = run(store, wordpress, "push")
 
     assert "WordPress changed the content; check the post" in output
-
-
-def test_push_trashes_posts_whose_files_were_deleted_only_with_prune(tmp_path, store):
-    wordpress, first = pulled_blog(tmp_path, store)
-    first.unlink()
-    (tmp_path / "content/post-2.md").unlink()
-    wordpress.post(2)["title"]["raw"] = "Edited on WordPress"
-    both = (
-        "content/post-2.md  deleted locally; changed on WordPress since the last sync"
-    )
-
-    _, output, _ = run(store, wordpress, "push")
-    assert output == "Nothing to push.\n"
-    assert [r for r in wordpress.requests if r.method == "DELETE"] == []
-
-    _, output, _ = run(store, wordpress, "diff", "-p")
-    assert output.splitlines() == [
-        "- l  1  content/post-1.md  "
-        "deleted locally; push -p moves the post to the trash",
-        f"?    2  {both}",
-    ]
-
-    status, output, _ = run(store, wordpress, "push", "-p")
-    assert (status, output.splitlines()) == (
-        0,
-        [
-            "-  1  content/post-1.md  moved to the WordPress trash",
-            f"?  2  {both}",
-            "Pushed 1 post (1 trashed); 1 skipped. "
-            "Rerun with --yes to accept the skipped changes.",
-        ],
-    )
-    assert [post["id"] for post in wordpress.trashed] == [1]
-
-    _, output, _ = run(store, wordpress, "push", "-p", "-y")
-    assert output.splitlines()[-1] == "Pushed 1 post (1 trashed)."
-    assert [post["id"] for post in wordpress.trashed] == [1, 2]
-    _, output, _ = run(store, wordpress, "pull")
-    assert output.splitlines()[-1] == "Nothing to pull."
-
-
-def test_delete_trashes_the_post_and_moves_its_file_to_the_local_trash(tmp_path, store):
-    wordpress, first = pulled_blog(tmp_path, store)
-
-    status, output, _ = run(store, wordpress, "delete", "post-1")
-    assert (status, output) == (
-        0,
-        "Nothing deleted. Rerun with --yes to delete it.\n",
-    )
-    assert wordpress.trashed == [] and first.exists()
-
-    status, output, _ = invoke(
-        ["myblog", "delete", "post-1"],
-        store,
-        wordpress=wordpress,
-        stdin=Terminal("y\n"),
-    )
-    assert status == 0
-    assert output.endswith(
-        "Moved #1 to the WordPress trash and content/post-1.md to "
-        ".trash/content/post-1.md.\n"
-    )
-    assert [post["id"] for post in wordpress.trashed] == [1]
-    assert not first.exists()
-    assert (tmp_path / ".trash/content/post-1.md").exists()
-    _, output, _ = run(store, wordpress, "diff")
-    assert output == "No local changes.\nNot shown: 1 unchanged (-a to show)\n"
-
-    write_post(tmp_path, "post-1.md", "title: Again\n")
-    _, output, _ = run(store, wordpress, "delete", "post-1.md", "-y")
-    assert output == "Moved content/post-1.md to .trash/content/post-1-2.md.\n"

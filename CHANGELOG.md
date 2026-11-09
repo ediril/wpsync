@@ -58,11 +58,14 @@
   post without a title.
 - `scripts/publish.sh [--prepare]` builds, checks, and publishes releases to
   PyPI.
-- `delete ID|SLUG` moves a post to the WordPress trash and its file into the
-  profile folder's `.trash/`, asking first, and stops tracking the post.
-- `push -p` / `--prune` moves posts whose files you deleted to the WordPress
-  trash, asking first for a post that changed on WordPress since the last sync;
-  `diff -p` previews it. Without `-p`, push still deletes nothing.
+- `delete ID|SLUG` deletes a post from the blog, with the library images no
+  other post or page uses, after asking, and keeps its file and images in the
+  profile folder's `.trash/`. `trash` lists what is there and `restore` brings
+  a post back, so the next push creates it again.
+- `push -p` / `--prune` deletes posts whose files you deleted the same way,
+  saving each post's current version in `.trash/` first, and asks first for a
+  post that changed on WordPress since the last sync; `diff -p` previews it.
+  Without `-p`, push still deletes nothing.
 
 ### Changed
 

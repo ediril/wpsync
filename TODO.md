@@ -8,7 +8,9 @@
 - [ ] Characterize against the user's real blogs: `init` and first-pull
   sign-in, read-only pull and diff first, then push to a blog the user
   designates. Confirm `wpautop` handling, oEmbed URLs, and the
-  HTML filter for users without `unfiltered_html`.
+  HTML filter for users without `unfiltered_html`. Check `delete` on a test
+  post: permanent deletion, and that the image-in-use search finds an image a
+  page shows.
 - [ ] README and `docs/`: the sync workflow, prompts, and known limitations,
   kept current as each command lands.
 - [ ] `tag` command: list tags with post counts, show or change one post's tags

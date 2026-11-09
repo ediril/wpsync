@@ -31,22 +31,17 @@ from wpsync.documents import (
     Document,
     DocumentError,
     LocalDocument,
-    move_to_trash,
     scan_documents,
+    scan_trash,
     write_document,
 )
 from wpsync.editors import Editor, EditorError, editor_command, launch
 from wpsync.posts import Post, PostStatus, PostSummary, RemoteState
 from wpsync.pull import Puller
 from wpsync.push import Pusher
-from wpsync.state import (
-    PostRecord,
-    StateError,
-    read_media,
-    read_records,
-    write_state,
-)
+from wpsync.state import PostRecord, StateError, read_media, read_records
 from wpsync.sync import Action, DiffEntry, SelectionError, compare, select
+from wpsync.trash import TrashError, delete_post, restore_post
 from wpsync.wordpress.client import WordPressClient, WordPressError, discover_api_root
 from wpsync.wordpress.remote import WordPressRemote
 
@@ -66,6 +61,8 @@ COMMANDS = (
     "pull",
     "push",
     "delete",
+    "trash",
+    "restore",
 )
 PROFILE_AWARE_COMMANDS = frozenset(
     {
@@ -81,6 +78,8 @@ PROFILE_AWARE_COMMANDS = frozenset(
         "pull",
         "push",
         "delete",
+        "trash",
+        "restore",
     }
 )
 NO_POSTS = "No posts here yet. Run wpsync pull, or add Markdown files under content/."
@@ -97,7 +96,7 @@ MARKER_COLORS = {
 LEGEND = (
     ("+ l", "new local post; push creates it"),
     ("~ l", "changed locally; push updates the post"),
-    ("- l", "deleted locally; WordPress keeps it unless push -p trashes it"),
+    ("- l", "deleted locally; push -p deletes it from WordPress"),
     ("?  ", "conflict or ambiguous match; push stops and asks"),
     ("=  ", "unchanged (shown with -a)"),
     ("x l", "private; push never sends it (shown with -a)"),
@@ -387,7 +386,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-p",
         "--prune",
         action="store_true",
-        help="show what push -p would move to the trash",
+        help="show what push -p would delete from the blog",
     )
 
     push = subparsers.add_parser(
@@ -412,7 +411,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-p",
         "--prune",
         action="store_true",
-        help="move posts whose files were deleted to the WordPress trash",
+        help="delete posts whose files were deleted, keeping them in .trash/",
     )
     push.add_argument(
         "-y", "--yes", action="store_true", help="answer yes to every question"
@@ -420,18 +419,38 @@ def build_parser() -> argparse.ArgumentParser:
 
     delete = subparsers.add_parser(
         "delete",
-        help="trash a post on the blog and move its file to .trash/",
+        help="delete a post from the blog, keeping it in .trash/",
         usage="wpsync delete ID|SLUG [-y]\n       wpsync PROFILE delete ID|SLUG [-y]",
         description=(
-            "Move a post to the WordPress trash, where it can be restored, and its "
-            "file into the profile folder's .trash/ folder, keeping its path. Asks "
-            "first. A title or file also selects the post."
+            "Delete a post from the blog for good, with the library images no other "
+            "post or page uses, and move its file and images into the profile "
+            "folder's .trash/, keeping their paths. Asks first. A title or file "
+            "also selects the post."
         ),
     )
     delete.add_argument("post", metavar="ID|SLUG", help="the post")
     delete.add_argument(
         "-y", "--yes", action="store_true", help="delete without asking"
     )
+
+    subparsers.add_parser(
+        "trash",
+        help="list the posts in .trash/",
+        usage="wpsync trash\n       wpsync PROFILE trash",
+        description="List deleted posts kept in .trash/, without contacting the blog.",
+    )
+
+    restore = subparsers.add_parser(
+        "restore",
+        help="bring a post back from .trash/",
+        usage="wpsync restore ID|SLUG\n       wpsync PROFILE restore ID|SLUG",
+        description=(
+            "Move a post and its images from .trash/ back where they were, as a new "
+            "post: the next push creates it on the blog. A title or file also "
+            "selects the post."
+        ),
+    )
+    restore.add_argument("post", metavar="ID|SLUG", help="the post")
 
     pull = subparsers.add_parser(
         "pull",
@@ -915,15 +934,19 @@ def _delete(arguments: argparse.Namespace, session: _Session) -> str:
     if record is None:
         if not confirm(f"{path} is not on WordPress. Move it to {TRASH_DIR}/?"):
             return declined
-        return f"Moved {path} to {move_to_trash(root, path)}."
+        deleted = delete_post(
+            root, profile.api_root, None, None, path, item.document, on_disk=True
+        )
+        return f"Moved {path} to {deleted.trashed}."
     post_id = record.post_id
     lazy = _LazyRemote(profile, session)
+    remote: WordPressRemote | None = None
     try:
         state = lazy.post_states([post_id]).get(post_id)
         title = item.document.post.title
         question = (
-            f"Move #{post_id} {title!r} to the WordPress trash and {path} to "
-            f"{TRASH_DIR}/?"
+            f"Delete #{post_id} {title!r} from WordPress for good, with its "
+            f"comments? The file moves to {TRASH_DIR}/."
         )
         if state is None:
             question = (
@@ -937,15 +960,51 @@ def _delete(arguments: argparse.Namespace, session: _Session) -> str:
         if not confirm(question):
             return declined
         if state is not None:
-            WordPressRemote(lazy.connect(), session.transport).trash(post_id)
+            remote = WordPressRemote(lazy.connect(), session.transport)
+        deleted = delete_post(
+            root, profile.api_root, remote, post_id, path, item.document, on_disk=True
+        )
     finally:
+        if remote is not None:
+            remote.close()
         lazy.close()
-    trashed = move_to_trash(root, path)
-    with write_state(root, profile.api_root) as writer:
-        writer.forget(post_id)
-    if state is None:
-        return f"#{post_id} was already gone from WordPress. Moved {path} to {trashed}."
-    return f"Moved #{post_id} to the WordPress trash and {path} to {trashed}."
+    moved = f"moved {path} to {deleted.trashed}"
+    if remote is None:
+        return f"#{post_id} was already gone from WordPress; {moved}."
+    images = ""
+    if deleted.media:
+        images = f", with {deleted.media} image{'s' * (deleted.media != 1)}"
+    return f"Deleted #{post_id} from WordPress{images}; {moved}."
+
+
+def _trash(arguments: argparse.Namespace, session: _Session) -> str:
+    profile, _ = _profile_root(arguments, session)
+    items = scan_trash(profile.local_root)
+    if not items:
+        return "The trash is empty."
+    width = max(len("ID"), *(len(item.document.post_id or "-") for item in items))
+    lines = [f"{'ID':>{width}}  Title (restores to)"]
+    for item in items:
+        post = item.document.post
+        original = PurePosixPath(item.path).relative_to(TRASH_DIR)
+        lines.append(
+            f"{item.document.post_id or '-':>{width}}  "
+            f"{post.title or '(no title)'} ({original})"
+        )
+    return "\n".join(lines)
+
+
+def _restore(arguments: argparse.Namespace, session: _Session) -> str:
+    profile, base = _profile_root(arguments, session)
+    root = profile.local_root
+    selection = select(arguments.post, scan_trash(root), {}, root=root, base=base)
+    if not selection.documents:
+        raise SelectionError(f"post {arguments.post} is not in the trash")
+    item = selection.documents[0]
+    original = restore_post(root, item)
+    if item.document.post_id and item.document.post.status is PostStatus.PUBLIC:
+        return f"Restored {original}; push puts it back on the blog."
+    return f"Restored {original}."
 
 
 def _editor(arguments: argparse.Namespace, session: _Session) -> str:
@@ -1091,6 +1150,8 @@ HANDLERS = {
     "pull": _pull,
     "push": _push,
     "delete": _delete,
+    "trash": _trash,
+    "restore": _restore,
 }
 
 
@@ -1131,6 +1192,7 @@ def run(
         EditorError,
         SelectionError,
         StateError,
+        TrashError,
         WordPressError,
     ) as error:
         print(f"wpsync: error: {error}", file=stderr)

@@ -12,7 +12,7 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path, PurePosixPath
+from pathlib import Path
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
@@ -202,18 +202,6 @@ def write_document(path: Path, document: Document) -> None:
     write_text_atomic(path, serialize_document(document), mode=0o644)
 
 
-def move_to_trash(root: Path, path: PurePosixPath) -> PurePosixPath:
-    """Move a post file into the profile folder's trash, keeping its path."""
-    target = PurePosixPath(TRASH_DIR) / path
-    number = 2
-    while (root / target).exists():
-        target = target.with_name(f"{path.stem}-{number}{path.suffix}")
-        number += 1
-    (root / target).parent.mkdir(parents=True, exist_ok=True)
-    (root / path).rename(root / target)
-    return target
-
-
 def _post_files(posts_dir: Path) -> list[Path]:
     files = []
     for directory, subdirectories, names in os.walk(posts_dir):
@@ -228,16 +216,29 @@ def _post_files(posts_dir: Path) -> list[Path]:
     return sorted(files)
 
 
-def scan_documents(root: Path) -> list[LocalDocument]:
-    """Read every post file under the root, reporting all problems together."""
+def _read_folder(root: Path, folder: str) -> tuple[list[LocalDocument], list[str]]:
     documents: list[LocalDocument] = []
     problems: list[str] = []
-    for path in _post_files(root / CONTENT_DIR):
+    for path in _post_files(root / folder):
         relative = path.relative_to(root)
         try:
             documents.append(LocalDocument(relative, _load(path)))
         except DocumentError as error:
             problems.append(f"{relative}: {error}")
+    return documents, problems
+
+
+def scan_trash(root: Path) -> list[LocalDocument]:
+    """Read the post files in the profile folder's trash."""
+    documents, problems = _read_folder(root, TRASH_DIR)
+    if problems:
+        raise DocumentError("\n".join(problems))
+    return documents
+
+
+def scan_documents(root: Path) -> list[LocalDocument]:
+    """Read every post file under the root, reporting all problems together."""
+    documents, problems = _read_folder(root, CONTENT_DIR)
     users: dict[str, list[Path]] = {}
     for item in documents:
         if item.document.post_id is not None:

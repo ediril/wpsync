@@ -103,7 +103,7 @@ def test_diff_shows_local_changes_and_fetches_only_those_posts(tmp_path, store):
         "?    4  content/both.md  "
         "content; also changed on WordPress since the last sync",
         "~ l  1  content/content.md  content",
-        "- l  5  content/deleted.md  deleted locally; WordPress keeps the post",
+        "- l  5  content/deleted.md",
         "~ l  2  content/details.md  details",
         "~ l  7  content/unpublish.md  unpublish; becomes a draft on WordPress",
         "Not shown: 1 unchanged, 1 private (-a to show)",

@@ -111,13 +111,20 @@ Every prompt defaults to No. `-y` / `--yes` answers yes to every prompt within
 the selected files. When no terminal can answer, a prompt counts as No and the
 message names `--yes`.
 
-Push deletes nothing on WordPress unless `-p` / `--prune` is given, as in
-HLSync. With it, a post whose file was deleted moves to the WordPress trash,
-which keeps it restorable, and its record is dropped. A post that changed on
-WordPress since the last sync is a conflict that asks first. `delete` does
-both sides for one post: it trashes the post on WordPress, moves the file into
-the profile folder's `.trash/`, and drops the record. Pull never deletes local
-files.
+Push deletes nothing on the blog unless `-p` / `--prune` is given, as in
+HLSync. `delete` removes one post; `push -p` removes each post whose file was
+deleted, after saving the blog's version of it. Either way the post is deleted
+from the blog for good, its records are dropped, and its file is kept in the
+profile folder's `.trash/` at its original path. Images that no other post or
+page uses, on the blog or locally, go with it: deleted from the media library
+and moved into `.trash/`. A post that changed on the blog since the last sync
+asks first. `restore` moves a post back without its `id`, so the next push
+creates it again. Pull never deletes local files.
+
+The trash is WPSync's own, not WordPress's, because other blogging platforms
+may have none; the Markdown copy is also easier to read than a post in a
+dashboard trash. The cost is that a restored post is a new post: its ID,
+comments, and anything else only the blog held are gone.
 
 ## Rationale
 
@@ -154,4 +161,3 @@ would otherwise ask.
 - Selecting several posts in one command; a command acts on one post or all.
 - Linking posts by title, or by slug without confirmation when the pull
   would change what the file says.
-- Permanent remote deletion.

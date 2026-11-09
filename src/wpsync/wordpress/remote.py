@@ -6,7 +6,7 @@ import mimetypes
 import re
 from datetime import UTC, tzinfo
 from typing import Any
-from urllib.parse import quote, unquote
+from urllib.parse import quote, unquote, urlsplit
 
 import httpx
 
@@ -19,9 +19,11 @@ from wpsync.posts import (
     PostSummary,
     RemoteState,
 )
+from wpsync.state import MediaRecord
 from wpsync.wordpress.client import (
     FINGERPRINT_FIELDS,
     HEADERS,
+    SYNCED_STATUSES,
     TIMEOUT,
     WordPressClient,
     WordPressError,
@@ -50,6 +52,7 @@ class WordPressRemote:
         )
         self._timezone: tzinfo | None = None
         self._terms: dict[str, dict[int, str]] = {}
+        self._featured: set[str] | None = None
 
     def close(self) -> None:
         self.downloads.close()
@@ -146,9 +149,48 @@ class WordPressRemote:
         params = {"context": "edit", "_fields": PULL_FIELDS}
         return self._fetched(self.client.post(route, params, json=body).json())
 
-    def trash(self, post_id: str) -> None:
-        # Without force, WordPress moves the post to the trash instead of deleting it.
-        self.client.delete(f"wp/v2/posts/{post_id}")
+    def delete_post(self, post_id: str) -> None:
+        # force skips WordPress's own trash: WPSync keeps the copy in .trash/.
+        self.client.delete(f"wp/v2/posts/{post_id}", {"force": "true"})
+
+    def delete_media(self, media_id: str) -> None:
+        self.client.delete(f"wp/v2/media/{media_id}", {"force": "true"})
+
+    def media_in_use(self, media: MediaRecord, post_id: str) -> bool:
+        # WordPress marks an image it inserts with its library ID; images added
+        # by hand are found by their file path, in any of the image's sizes.
+        for term in (f"wp-image-{media.media_id}", _upload_stem(media.url)):
+            for route in ("wp/v2/posts", "wp/v2/pages"):
+                found = self.client.get_all(
+                    route,
+                    {
+                        "search": term,
+                        "status": SYNCED_STATUSES,
+                        "context": "edit",
+                        "_fields": "id",
+                    },
+                )
+                if any(str(item["id"]) != post_id for item in found):
+                    return True
+        return media.media_id in self._featured_media()
+
+    def _featured_media(self) -> set[str]:
+        """The library images posts and pages show as their featured image."""
+        if self._featured is None:
+            self._featured = {
+                str(item["featured_media"])
+                for route in ("wp/v2/posts", "wp/v2/pages")
+                for item in self.client.get_all(
+                    route,
+                    {
+                        "status": SYNCED_STATUSES,
+                        "context": "edit",
+                        "_fields": "id,featured_media",
+                    },
+                )
+                if item.get("featured_media")
+            }
+        return self._featured
 
     def keeps_display(self, sent: str, stored: str) -> bool:
         return same_display(sent, stored)
@@ -199,6 +241,13 @@ class WordPressRemote:
         if taxonomy not in self._terms:
             self._terms[taxonomy] = self.client.term_names(taxonomy)
         return self._terms[taxonomy]
+
+
+def _upload_stem(url: str) -> str:
+    """An image's upload path without its size suffix, matching every size."""
+    path = unquote(urlsplit(url).path)
+    path = path.split("/uploads/", 1)[-1]
+    return re.sub(r"(-\d+x\d+|-scaled)?\.\w+$", "", path)
 
 
 def _file_stem(post: dict[str, Any]) -> str:

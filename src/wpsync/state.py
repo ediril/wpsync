@@ -156,6 +156,9 @@ class StateWriter:
     def forget(self, post_id: str) -> None:
         self.connection.execute("DELETE FROM posts WHERE post_id = ?", (post_id,))
 
+    def forget_media(self, path: PurePosixPath) -> None:
+        self.connection.execute("DELETE FROM media WHERE path = ?", (str(path),))
+
     def save_media(self, record: MediaRecord) -> None:
         self.connection.execute(
             "INSERT OR REPLACE INTO media VALUES (?, ?, ?, ?, ?)",

@@ -34,8 +34,9 @@ class FakeWordPress:
         self.saved = []
         """The JSON body of each post create or update, in order."""
         self.uploads = []
-        self.trashed = []
-        """Posts moved to the trash, which listings leave out as WordPress does."""
+        self.deleted = []
+        """IDs of posts and library images deleted for good, as ('post', id)."""
+        self.pages = []
         self.rewrite_content = lambda content: content
         """Stands in for filters such as kses, which change what WordPress stores."""
         self.posts = [
@@ -142,10 +143,12 @@ class FakeWordPress:
         if request.method == "POST":
             return self.write(route, request)
         if request.method == "DELETE":
-            post = self.post(route.rsplit("/", 1)[1])
-            self.posts.remove(post)
-            self.trashed.append({**post, "status": "trash"})
-            return httpx.Response(200, json=self.trashed[-1])
+            assert request.url.params.get("force") == "true", "only deletes for good"
+            kind, item_id = route.split("/")[-2:]
+            if kind == "posts":
+                self.posts.remove(self.post(item_id))
+            self.deleted.append((kind, int(item_id)))
+            return httpx.Response(200, json={"deleted": True})
         if route is None or not self.advertises_api:
             link = f'<{self.api_root}>; rel="https://api.w.org/"'
             headers = {"Link": link} if self.advertises_api else {}
@@ -184,10 +187,13 @@ class FakeWordPress:
                 json=[{"id": i, "name": n} for i, n in terms.items()],
                 headers={"X-WP-TotalPages": "1"},
             )
-        if route == "/wp/v2/posts":
+        if route in ("/wp/v2/posts", "/wp/v2/pages"):
             per_page = int(request.url.params["per_page"])
             page = int(request.url.params["page"])
-            posts = self.posts
+            posts = self.posts if route.endswith("posts") else self.pages
+            if "search" in request.url.params:
+                term = request.url.params["search"]
+                posts = [p for p in posts if term in p["content"]["raw"]]
             if "include" in request.url.params:
                 wanted = {int(i) for i in request.url.params["include"].split(",")}
                 posts = [post for post in posts if post["id"] in wanted]

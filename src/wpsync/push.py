@@ -20,12 +20,17 @@ from wpsync.documents import (
 )
 from wpsync.markup.markdown import image_sources
 from wpsync.media import Media, MediaImage, MediaLibrary, PostMedia, image_path
-from wpsync.posts import ContentFormat, FetchedPost, Post
+from wpsync.posts import ContentFormat, Conversion, FetchedPost, Post
 from wpsync.state import MediaRecord, PostRecord, write_state
-from wpsync.sync import Action, DiffEntry, PushStep, Remote, TrashStep
+from wpsync.sync import Action, DeleteStep, DiffEntry, PushStep, Remote
+from wpsync.trash import DeleteRemote, delete_post
 
 
-class PushRemote(Remote, Protocol):
+class PushRemote(Remote, DeleteRemote, Protocol):
+    def fetch_posts(self, ids: list[str]) -> list[FetchedPost]: ...
+
+    def convert(self, post: FetchedPost, media: Media) -> Conversion: ...
+
     def render(self, markdown: str, media: Media) -> str: ...
 
     def upload(self, name: str, data: bytes) -> MediaImage: ...
@@ -43,10 +48,6 @@ class PushRemote(Remote, Protocol):
         unpublish: bool,
     ) -> FetchedPost: ...
 
-    def trash(self, post_id: str) -> None:
-        """Move a post to the platform's trash, where it can be restored."""
-        ...
-
     def keeps_display(self, sent: str, stored: str) -> bool:
         """Whether the platform stored content that displays as it was sent."""
         ...
@@ -60,21 +61,21 @@ class _CannotSend(Exception):
 class PushResult:
     new: int = 0
     updated: int = 0
-    trashed: int = 0
+    deleted: int = 0
     images: int = 0
     skipped: int = 0
     declined: int = 0
     """Skipped posts that answering yes would have sent."""
 
     def summary(self) -> str:
-        pushed = self.new + self.updated + self.trashed
+        pushed = self.new + self.updated + self.deleted
         if not pushed:
             skipped = f"; {self.skipped} skipped" if self.skipped else ""
             return f"Nothing to push{skipped}."
         counts = (
             (self.new, "new"),
             (self.updated, "updated"),
-            (self.trashed, "trashed"),
+            (self.deleted, "deleted"),
         )
         parts = [f"{count} {label}" for count, label in counts if count]
         line = f"Pushed {pushed} post{'s' * (pushed != 1)}"
@@ -112,8 +113,8 @@ class Pusher:
 
     def push(self, entries: list[DiffEntry]) -> PushResult:
         for entry in entries:
-            if isinstance(entry.step, TrashStep):
-                self._trash(entry, entry.step)
+            if isinstance(entry.step, DeleteStep):
+                self._delete(entry, entry.step)
             elif entry.step is not None:
                 self._send(entry, entry.step)
             elif entry.action is Action.CONFLICT:
@@ -155,20 +156,48 @@ class Pusher:
         self.result.images += uploaded
         self._report_sent(entry, step, saved, content, uploaded)
 
-    def _trash(self, entry: DiffEntry, step: TrashStep) -> None:
+    def _delete(self, entry: DiffEntry, step: DeleteStep) -> None:
         if step.question and not self.confirm(step.question):
             self._decline(entry, entry.detail)
             return
-        if step.gone:
-            detail = "already gone from WordPress; no longer tracked"
-        else:
-            self.remote.trash(step.target)
-            detail = "moved to the WordPress trash"
         self.records.pop(step.target, None)
-        with write_state(self.root, self.api_root) as state:
-            state.forget(step.target)
-        self.result.trashed += 1
-        self.report(DiffEntry(Action.DELETED, "", step.target, entry.path, detail))
+        fetched = [] if step.gone else self.remote.fetch_posts([step.target])
+        if not fetched:
+            with write_state(self.root, self.api_root) as state:
+                state.forget(step.target)
+            self.result.deleted += 1
+            self.report(
+                DiffEntry(
+                    Action.DELETED,
+                    "",
+                    step.target,
+                    entry.path,
+                    "already gone from WordPress",
+                )
+            )
+            return
+        post = fetched[0]
+        # The trash keeps the blog's version, since the local file is gone.
+        conversion = self.remote.convert(post, PostMedia(self.library, entry.path))
+        for download in self.library.take_pending():
+            self.library.release(download)
+        copy = Document(
+            post.id, replace(post.post, body=conversion.markdown.strip("\n"))
+        )
+        deleted = delete_post(
+            self.root,
+            self.api_root,
+            self.remote,
+            post.id,
+            entry.path,
+            copy,
+            on_disk=False,
+        )
+        self.result.deleted += 1
+        detail = "deleted; kept in .trash/"
+        if deleted.media:
+            detail += f"; {deleted.media} image{'s' * (deleted.media != 1)} deleted"
+        self.report(DiffEntry(Action.DELETED, "", post.id, entry.path, detail))
 
     def _is_block_post(self, post_id: str) -> bool:
         state = self.remote.post_states([post_id]).get(post_id)

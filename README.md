@@ -63,13 +63,13 @@ wpsync open idea                         # open a post in your editor
 wpsync pull                              # bring changes from the blog
 wpsync diff                              # what push would change, read-only
 wpsync push hello                        # send one post
-wpsync delete hello                      # trash a post and move its file to .trash/
+wpsync delete hello                      # delete a post, keeping it in .trash/
 ```
 
 A new post is private until you set `status: public` in its header. Pull asks
 before replacing a file you edited, and push asks before replacing a post that
 also changed on WordPress. Push deletes nothing on the blog unless you pass
-`-p`, which moves posts whose files you deleted to the WordPress trash.
+`-p`, and a deleted post is kept in `.trash/`, where `restore` brings it back.
 
 ## Documentation
 

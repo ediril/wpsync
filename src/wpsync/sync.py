@@ -46,7 +46,11 @@ def select(
     root: Path,
     base: Path,
 ) -> Selection:
-    """Narrow to one post chosen by post ID, file path, slug, or title."""
+    """Narrow to one post chosen by post ID, file, slug, or title.
+
+    A file name without a folder is looked for under the current directory
+    first, then in every folder under content/.
+    """
     if selector is None:
         return Selection(documents, records)
     if selector.isdigit():
@@ -55,32 +59,48 @@ def select(
             record = {selector: records[selector]} if selector in records else {}
             return Selection(chosen, record)
         raise SelectionError(f"no local post has id {selector}")
-    if "/" in selector or selector.endswith(".md"):
-        path = (base / selector).resolve()
-        try:
-            relative = PurePosixPath(path.relative_to(root).as_posix())
-        except ValueError as error:
-            raise SelectionError(f"{selector} is outside the profile folder") from error
-        chosen = [item for item in documents if PurePosixPath(item.path) == relative]
+    if "/" in selector:
+        chosen = _at_path(selector, documents, root, base)
         if not chosen:
             raise SelectionError(f"{selector} is not a post file under {CONTENT_DIR}/")
-    else:
-        chosen = [item for item in documents if item.document.post.slug == selector]
+    elif selector.endswith(".md"):
+        chosen = _at_path(selector, documents, root, base) or [
+            item for item in documents if PurePosixPath(item.path).name == selector
+        ]
         if not chosen:
-            title = selector.casefold()
-            chosen = [
+            raise SelectionError(f"no post file is named {selector}")
+    else:
+        title = selector.casefold()
+        chosen = (
+            [item for item in documents if item.document.post.slug == selector]
+            or [item for item in documents if PurePosixPath(item.path).stem == selector]
+            or [
                 item
                 for item in documents
                 if item.document.post.title.casefold() == title
             ]
+        )
         if not chosen:
-            raise SelectionError(f"no local post has slug or title '{selector}'")
-        if len(chosen) > 1:
-            paths = ", ".join(str(item.path) for item in chosen)
-            raise SelectionError(f"'{selector}' matches {paths}")
+            raise SelectionError(
+                f"no local post has slug, file name, or title '{selector}'"
+            )
+    if len(chosen) > 1:
+        paths = ", ".join(str(item.path) for item in chosen)
+        raise SelectionError(f"'{selector}' matches {paths}")
     post_id = chosen[0].document.post_id
     record = {post_id: records[post_id]} if post_id in records else {}
     return Selection(chosen, record)
+
+
+def _at_path(
+    selector: str, documents: list[LocalDocument], root: Path, base: Path
+) -> list[LocalDocument]:
+    path = (base / selector).resolve()
+    try:
+        relative = PurePosixPath(path.relative_to(root).as_posix())
+    except ValueError as error:
+        raise SelectionError(f"{selector} is outside the profile folder") from error
+    return [item for item in documents if PurePosixPath(item.path) == relative]
 
 
 class Candidate(Protocol):

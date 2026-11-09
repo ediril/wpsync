@@ -62,7 +62,15 @@
 ### Changed
 
 - License WPSync under PolyForm Strict 1.0.0.
+- `show`, `open`, `diff`, and `push` find a post by its file name without a
+  folder, such as `vibing` or `vibing.md`, in any folder under `content/`;
+  `pull` does so for a name ending in `.md`.
 - Derive versions from Git history like HLSync: `<major>.<work-day>.<increment>`
   starting from `version.json`. The history starts at 1.0.1, so
   releases begin at 1.1 and follow the 1.0.x releases a previous `wpsync`
   project published on PyPI.
+
+### Fixed
+
+- Pull downloads the images a post shows when it links a local file that
+  already matches the post, instead of leaving them missing unreported.

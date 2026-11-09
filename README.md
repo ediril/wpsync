@@ -88,6 +88,12 @@ also changed on WordPress. Push never deletes anything on the blog.
 Commands accept any unique prefix, such as `wpsync di`. An ambiguous prefix
 fails and lists the commands it could mean.
 
+`show`, `open`, `diff`, and `push` take one post by ID, slug, file name, title,
+or path. A file name needs no folder: `vibing` or `vibing.md` finds
+`content/2019/vibing.md`, looking in the current folder first and then in every
+folder under `content/`. A name that matches several files lists them. `pull`
+takes an ID, a slug, a file name ending in `.md`, or a path.
+
 Use `wpsync -h` and `wpsync COMMAND -h` for built-in help, and `wpsync --legend`
 for the diff and ls symbols. `wpsync -v` and `wpsync --version` print the
 installed version.

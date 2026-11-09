@@ -132,20 +132,36 @@ def test_diff_matches_new_files_by_slug_and_notes_shared_titles(tmp_path, store)
     ]
 
 
-def test_one_post_is_selected_by_id_slug_or_path(tmp_path, store, monkeypatch):
+def test_one_post_is_selected_by_id_slug_file_name_or_path(
+    tmp_path, store, monkeypatch
+):
     wordpress = FakeWordPress(post_count=2)
     add_profile(store, "myblog", tmp_path)
+    (tmp_path / "content/2019").mkdir(parents=True)
     edit(synced(tmp_path, wordpress, 1, "one.md"), "Body", "New body")
-    edit(synced(tmp_path, wordpress, 2, "two.md"), "Body", "New body")
-    monkeypatch.chdir(tmp_path / "content")
+    edit(synced(tmp_path, wordpress, 2, "2019/two.md"), "Body", "New body")
+    (tmp_path / "content/drafts").mkdir()
+    new_post(tmp_path, "drafts/one.md", title="Draft", status=PostStatus.PRIVATE)
+    monkeypatch.chdir(tmp_path)
 
-    for selector in ("2", "post-2", "two.md"):
+    for selector in ("2", "post-2", "two", "two.md", "content/2019/two.md"):
         status, output, _ = invoke(["diff", selector], store, wordpress=wordpress)
-        assert (status, output) == (0, "~ l  2  content/two.md  content\n"), selector
+        assert (status, output) == (0, "~ l  2  content/2019/two.md  content\n"), (
+            selector
+        )
+
+    status, _, errors = invoke(["diff", "one.md"], store, wordpress=wordpress)
+    assert (status, errors) == (
+        1,
+        "wpsync: error: 'one.md' matches content/drafts/one.md, content/one.md\n",
+    )
+    monkeypatch.chdir(tmp_path / "content")
+    status, output, _ = invoke(["diff", "one.md"], store, wordpress=wordpress)
+    assert (status, output) == (0, "~ l  1  content/one.md  content\n")
 
     status, _, errors = invoke(["diff", "post-9"], store, wordpress=wordpress)
     assert status == 1
-    assert "no local post has slug or title 'post-9'" in errors
+    assert "no local post has slug, file name, or title 'post-9'" in errors
 
 
 def test_ls_lists_local_posts_without_contacting_the_blog(tmp_path, store, monkeypatch):

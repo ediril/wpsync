@@ -64,7 +64,8 @@ wpsync diff          # every post
 wpsync diff 123      # one post, by ID
 wpsync diff hello    # one post, by slug
 wpsync diff "Hello World"   # one post, by title
-wpsync diff content/new-idea.md   # one post, by file
+wpsync diff new-idea.md     # one post, by file name in any folder
+wpsync diff content/new-idea.md   # one post, by path
 wpsync diff -a       # also list unchanged posts
 wpsync --legend      # explain the diff and ls symbols
 ```

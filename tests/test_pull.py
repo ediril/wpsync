@@ -171,6 +171,29 @@ def test_a_file_that_pull_would_only_fill_in_is_linked_without_asking(tmp_path, 
     assert "categories:\n- News\n" in path.read_text()
 
 
+def test_linking_an_identical_file_still_downloads_the_images_it_shows(
+    tmp_path, store
+):
+    wordpress = blog()
+    add_profile(store, "myblog", tmp_path)
+    pull(store, wordpress)
+    (tmp_path / ".wpsync/state.db").unlink()
+    image = tmp_path / "content/images/sunset-1024x768.jpg"
+    image.unlink()
+    post = (tmp_path / "content/post-1.md").read_text()
+
+    status, output, _ = pull(store, wordpress, "1")
+
+    assert output.splitlines()[1:] == [
+        "=  1  content/post-1.md  linked; already identical; 1 image",
+        "Pulled 1 post (1 linked), 1 image.",
+    ]
+    assert image.exists()
+    assert (tmp_path / "content/post-1.md").read_text() == post
+    status, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
+    assert output.startswith("No local changes.")
+
+
 def test_pull_never_deletes_or_restores_files(tmp_path, store):
     wordpress = blog()
     add_profile(store, "myblog", tmp_path)

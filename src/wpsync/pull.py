@@ -277,10 +277,11 @@ class Puller:
             return False
         remote = replace(post.post, body=conversion.markdown.strip("\n"))
         if document.post_id == post.id and remote == document.post:
-            for download in self.library.take_pending():
-                self.library.release(download)
-            self._record(post, path, document, [], [])
-            self._line(Action.UNCHANGED, post.id, path, "linked; already identical")
+            # The file is untouched, but the images it shows may not be there yet.
+            images, missing, details = self._save_media(path, conversion)
+            self._record(post, path, document, images, missing)
+            detail = "; ".join(["linked; already identical", *details])
+            self._line(Action.UNCHANGED, post.id, path, detail)
             self.result.linked += 1
             return True
         if not _only_fills_in(document.post, remote) and not self.confirm(question):
@@ -312,6 +313,23 @@ class Puller:
             conversion = self._convert(post, path)
             if conversion is None:
                 return False
+        images, missing, details = self._save_media(path, conversion)
+        written = Document(
+            post.id,
+            replace(post.post, body=conversion.markdown.strip("\n")),
+            existing.extra,
+        )
+        write_text_atomic(self.root / path, serialize_document(written), mode=0o644)
+        self._record(post, path, written, images, missing)
+        if conversion.kept:
+            details.append("kept as HTML: " + ", ".join(dict.fromkeys(conversion.kept)))
+        self._line(action, post.id, path, "; ".join(details))
+        return True
+
+    def _save_media(
+        self, path: PurePosixPath, conversion: Conversion
+    ) -> tuple[list[MediaRecord], list[str], list[str]]:
+        """Save the images a converted post shows, and report missing files."""
         used = {
             image
             for source in image_sources(conversion.markdown)
@@ -345,13 +363,6 @@ class Puller:
         missing = [
             record.url for record in shown if record and not record.checksum
         ] + pages_gone
-        written = Document(
-            post.id,
-            replace(post.post, body=conversion.markdown.strip("\n")),
-            existing.extra,
-        )
-        write_text_atomic(self.root / path, serialize_document(written), mode=0o644)
-        self._record(post, path, written, images, missing)
         fetched = sum(data is not None for _, data in files)
         self.result.images += fetched
         self.result.missing_files += len(missing)
@@ -360,10 +371,7 @@ class Puller:
             details.append(f"{fetched} image{'s' * (fetched != 1)}")
         if missing:
             details.append("missing: " + ", ".join(missing))
-        if conversion.kept:
-            details.append("kept as HTML: " + ", ".join(dict.fromkeys(conversion.kept)))
-        self._line(action, post.id, path, "; ".join(details))
-        return True
+        return images, missing, details
 
     def _convert(self, post: FetchedPost, path: PurePosixPath) -> Conversion | None:
         try:

@@ -49,9 +49,11 @@
 - `create [FILE] [-t TITLE] [-s SLUG]` starts a private post file under
   `content/`, named after the date and time when no file is given. A post may
   stay untitled; WordPress then uses its ID as its address.
-- `open ID|SLUG` opens a post's file in Obsidian or VS Code, chosen with
-  `editor [obsidian|vscode]` and saved in `~/.wpsync/config.json`; both ask
-  when no editor is chosen.
+- `open [ID|SLUG]` opens a post's file in Obsidian or VS Code, or without a
+  name a post `create` named after the time in the last 10 minutes; `create -o`
+  opens the new file at once. The
+  editor is chosen with `editor [obsidian|vscode]` and saved in
+  `~/.wpsync/config.json`; both ask when no editor is chosen.
 - `push [ID|SLUG]` creates and updates posts from changed files, sending only the
   content or the header fields that changed. It writes what WordPress assigned
   back into new files, uploads local images, turns a published post made private

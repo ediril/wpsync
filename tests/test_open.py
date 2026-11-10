@@ -1,5 +1,6 @@
 import subprocess
 import sys
+from datetime import datetime, timedelta
 from urllib.parse import quote
 
 import pytest
@@ -94,3 +95,43 @@ def test_launch_finds_the_program_on_path_or_vs_code_as_a_mac_app(monkeypatch):
         ["/opt/bin/code.cmd", "/blog", "/blog/a.md"],
         ["open", "-a", "Visual Studio Code", "/blog", "/blog/a.md"],
     ]
+
+
+def test_open_without_a_name_opens_a_post_created_in_the_last_minutes(tmp_path, store):
+    add_profile(store, "myblog", tmp_path)
+    invoke(["editor", "vscode"], store)
+    launched = []
+
+    def open_newest():
+        return invoke(["myblog", "open"], store, launch=launched.append, password=None)
+
+    status, output, _ = invoke(
+        ["myblog", "create", "named", "-o"],
+        store,
+        launch=launched.append,
+        password=None,
+    )
+    assert (status, output.splitlines()[-1]) == (
+        0,
+        "Opened content/named.md in VS Code.",
+    )
+    status, _, errors = open_newest()
+    assert (status, errors) == (
+        1,
+        "wpsync: error: no post created in the last 10 minutes; "
+        "name one: wpsync open ID|SLUG\n",
+    )
+
+    invoke(["myblog", "create"], store, password=None)
+    _, output, _ = invoke(["myblog", "create"], store, password=None)
+    newest = output.split()[1]
+    assert newest.endswith("-2.md")
+    status, output, _ = open_newest()
+    assert (status, output) == (0, f"Opened {newest} in VS Code.\n")
+
+    for path in (tmp_path / "content").glob("2*.md"):
+        path.rename(path.with_name(f"renamed-{path.name[-5:]}"))
+    old = datetime.now() - timedelta(minutes=11)
+    (tmp_path / f"content/{old:%Y-%m-%d-%H%M}.md").write_text("---\ntitle: ''\n---\n")
+    status, _, _ = open_newest()
+    assert status == 1

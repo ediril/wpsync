@@ -98,6 +98,7 @@ wpsync create                                  # content/2026-11-10-1432.md, fro
 wpsync create idea                             # content/idea.md
 wpsync create drafts/hello -t "Hello, World!"  # content/drafts/hello.md, with a title
 wpsync create hello -s hello-again             # choose the slug
+wpsync create -o                               # and open it in your editor
 ```
 
 ```markdown
@@ -118,8 +119,8 @@ assigns one from the title when the post is created.
 You can rename or move a post's file and change its title at any time. The
 `id` in its header ties the file to its post, so push updates the same post
 instead of creating a new one. Moving a file to another folder breaks its
-relative image paths, as in any Markdown editor. `create` never overwrites a file and only
-touches local files.
+relative image paths, as in any Markdown editor. `create` never overwrites a
+file and only touches local files.
 
 ## Opening a post
 
@@ -131,7 +132,13 @@ or file. Choose the editor with `editor`, which is saved in
 ```console
 wpsync editor vscode     # or obsidian
 wpsync open hello
+wpsync open              # the post wpsync create just made
 ```
+
+Without a name, `open` opens the newest post `create` named after the time,
+such as `content/2026-11-10-1432.md`, if it was made in the last 10 minutes.
+That helps when you forgot `-o`. Otherwise `open` fails and asks you to name
+the post, so it never opens one you have forgotten about.
 
 VS Code opens the file with the profile folder as its workspace, using the
 `code` command; on macOS without that command, it opens the Visual Studio Code

@@ -58,7 +58,7 @@ header, and its images go in `content/images/`.
 wpsync profiles                          # list profiles; * marks the current one
 wpsync ls                                # local posts, without contacting the blog
 wpsync show hello                        # one post's details and issues
-wpsync create drafts/idea -t "An idea"   # start a new private post
+wpsync create -o                         # start a new private post and open it
 wpsync open idea                         # open a post in your editor
 wpsync pull                              # bring changes from the blog
 wpsync diff                              # what push would change, read-only

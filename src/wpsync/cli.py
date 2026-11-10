@@ -8,7 +8,7 @@ import sys
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
 from pathlib import Path, PurePosixPath
 from typing import TextIO
 
@@ -88,6 +88,10 @@ PROFILE_AWARE_COMMANDS = frozenset(
         "restore",
     }
 )
+TIMESTAMP_FORMAT = "%Y-%m-%d-%H%M"
+TIMESTAMP_NAME = re.compile(r"(\d{4}-\d{2}-\d{2}-\d{4})(?:-(\d+))?\.md")
+JUST_CREATED = timedelta(minutes=10)
+"""How long after create a plain wpsync open still opens the new post."""
 NO_POSTS = "No posts here yet. Run wpsync pull, or add Markdown files under content/."
 RESET = "\033[0m"
 MARKER_COLORS = {
@@ -317,8 +321,8 @@ def build_parser() -> argparse.ArgumentParser:
         "create",
         help="start a new post file",
         usage=(
-            "wpsync create [FILE] [-t TITLE] [-s SLUG]\n"
-            "       wpsync PROFILE create [FILE] [-t TITLE] [-s SLUG]"
+            "wpsync create [FILE] [-t TITLE] [-s SLUG] [-o]\n"
+            "       wpsync PROFILE create [FILE] [-t TITLE] [-s SLUG] [-o]"
         ),
         description=(
             "Start a private post under content/. Set its status to public when push "
@@ -332,6 +336,9 @@ def build_parser() -> argparse.ArgumentParser:
         help="file name under content/; the date and time when omitted",
     )
     create.add_argument("-t", "--title", default="", help="the post's title")
+    create.add_argument(
+        "-o", "--open", action="store_true", help="open the new file in your editor"
+    )
     create.add_argument(
         "-s", "--slug", help="the post's address; WordPress assigns one when omitted"
     )
@@ -366,13 +373,18 @@ def build_parser() -> argparse.ArgumentParser:
     open_parser = subparsers.add_parser(
         "open",
         help="open a post file in your editor",
-        usage="wpsync open ID|SLUG\n       wpsync PROFILE open ID|SLUG",
+        usage="wpsync open [ID|SLUG]\n       wpsync PROFILE open [ID|SLUG]",
         description=(
             "Open a post's file in the editor chosen with wpsync editor, asking "
             "first if none is chosen. A title or file also selects the post."
         ),
     )
-    open_parser.add_argument("post", metavar="ID|SLUG", help="the post")
+    open_parser.add_argument(
+        "post",
+        nargs="?",
+        metavar="ID|SLUG",
+        help="the post; the one wpsync create just made when omitted",
+    )
 
     diff = subparsers.add_parser(
         "diff",
@@ -724,12 +736,34 @@ def _create(arguments: argparse.Namespace, session: _Session) -> str:
     if path.exists():
         raise SelectionError(f"{relative} already exists")
     write_document(path, Document(None, Post(title=arguments.title, slug=slug)))
-    return f"Created {relative} (private; set status: public to publish it)."
+    created = f"Created {relative} (private; set status: public to publish it)."
+    if arguments.open:
+        return f"{created}\n{_open_file(session, root, relative)}"
+    return created
+
+
+def _just_created(root: Path, now: datetime) -> PurePosixPath | None:
+    """The newest post create named after the time, if made just now.
+
+    The time in the file name is when create made it, so nothing is recorded;
+    pulled posts and files renamed to a real name never match.
+    """
+    found = []
+    for path in (root / CONTENT_DIR).glob("*.md"):
+        match = TIMESTAMP_NAME.fullmatch(path.name)
+        if match is None:
+            continue
+        made = datetime.strptime(match[1], TIMESTAMP_FORMAT)
+        if timedelta(0) <= now - made <= JUST_CREATED:
+            found.append((made, int(match[2] or 1), path.name))
+    if not found:
+        return None
+    return PurePosixPath(CONTENT_DIR, max(found)[2])
 
 
 def _timestamp_file(root: Path, now: datetime) -> PurePosixPath:
     """A free file name under the posts folder from the current time."""
-    stem = f"{now:%Y-%m-%d-%H%M}"
+    stem = now.strftime(TIMESTAMP_FORMAT)
     for name in (stem, *(f"{stem}-{n}" for n in range(2, 100))):
         relative = PurePosixPath(CONTENT_DIR, f"{name}.md")
         if not (root / relative).exists():
@@ -929,16 +963,29 @@ def _pull_target(
 
 
 def _open(arguments: argparse.Namespace, session: _Session) -> str:
-    profile, item, _ = _one_post(arguments, session)
-    root = profile.local_root
+    if arguments.post is not None:
+        profile, item, _ = _one_post(arguments, session)
+        return _open_file(session, profile.local_root, PurePosixPath(item.path))
+    profile, _ = _profile_root(arguments, session)
+    recent = _just_created(profile.local_root, datetime.now())
+    if recent is None:
+        minutes = int(JUST_CREATED.total_seconds() // 60)
+        raise SelectionError(
+            f"no post created in the last {minutes} minutes; "
+            "name one: wpsync open ID|SLUG"
+        )
+    return _open_file(session, profile.local_root, recent)
+
+
+def _open_file(session: _Session, root: Path, relative: PurePosixPath) -> str:
     configuration = session.store.load()
     editor = configuration.editor
     if editor is None:
         editor = _ask_editor(session)
         configuration.editor = editor
         session.store.save(configuration)
-    session.launch(editor_command(editor, root, root / item.path))
-    return f"Opened {item.path} in {editor.label}."
+    session.launch(editor_command(editor, root, root / relative))
+    return f"Opened {relative} in {editor.label}."
 
 
 def _delete(arguments: argparse.Namespace, session: _Session) -> str:

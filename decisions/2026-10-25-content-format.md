@@ -123,7 +123,13 @@ Embed blocks without custom classes or alignment become their bare URL; the
 aspect-ratio classes the editor adds by itself do not count as custom. Images
 from the site's media library are downloaded into `content/images/` and the
 Markdown references the local file; only images the final Markdown uses are
-downloaded. A Markdown image source is relative to the post file, the
+downloaded. An image keeps its path after WordPress's `uploads/` folder, such
+as `content/images/2025/11/photo.png`. WordPress keeps file names unique
+within each upload folder, so that path belongs to one image and is the same
+on every pull: a file already at it is that image, saved by an earlier pull,
+and is adopted rather than downloaded again even when the media table was
+rebuilt. An image from outside the uploads folder gets its file name, with
+its library ID added if that name is taken. A Markdown image source is relative to the post file, the
 convention Markdown editors preview with, so the same image is
 `images/photo.png` from `content/` and `../images/photo.png` from a subfolder.
 The media table keeps each image's path relative to the profile folder, so one

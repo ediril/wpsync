@@ -57,9 +57,9 @@ def test_first_pull_writes_posts_and_images_that_diff_then_sees_as_synced(
         "\n"
         "Hello **world**.\n"
         "\n"
-        "![Sunset](images/sunset-1024x768.jpg)\n"
+        "![Sunset](images/2026/01/sunset-1024x768.jpg)\n"
     )
-    image = tmp_path / "content/images/sunset-1024x768.jpg"
+    image = tmp_path / "content/images/2026/01/sunset-1024x768.jpg"
     assert (
         image.read_bytes() == b"image:/wp-content/uploads/2026/01/sunset-1024x768.jpg"
     )
@@ -147,8 +147,8 @@ def test_an_image_is_written_relative_to_the_post_file_that_shows_it(tmp_path, s
 
     pull(store, wordpress, "1", "-y")
 
-    assert "![Sunset](../images/sunset-1024x768.jpg)" in path.read_text()
-    assert (tmp_path / "content/images/sunset-1024x768.jpg").exists()
+    assert "![Sunset](../images/2026/01/sunset-1024x768.jpg)" in path.read_text()
+    assert (tmp_path / "content/images/2026/01/sunset-1024x768.jpg").exists()
     status, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
     assert output.startswith("No local changes.")
 
@@ -176,7 +176,7 @@ def test_linking_an_identical_file_still_downloads_the_images_it_shows(tmp_path,
     add_profile(store, "myblog", tmp_path)
     pull(store, wordpress)
     (tmp_path / ".wpsync/state.db").unlink()
-    image = tmp_path / "content/images/sunset-1024x768.jpg"
+    image = tmp_path / "content/images/2026/01/sunset-1024x768.jpg"
     image.unlink()
     post = (tmp_path / "content/post-1.md").read_text()
 
@@ -188,6 +188,26 @@ def test_linking_an_identical_file_still_downloads_the_images_it_shows(tmp_path,
     ]
     assert image.exists()
     assert (tmp_path / "content/post-1.md").read_text() == post
+    status, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
+    assert output.startswith("No local changes.")
+
+
+def test_a_rebuilt_state_adopts_images_already_at_their_upload_paths(tmp_path, store):
+    wordpress = blog()
+    add_profile(store, "myblog", tmp_path)
+    pull(store, wordpress)
+    (tmp_path / ".wpsync/state.db").unlink()
+    wordpress.requests.clear()
+
+    status, output, _ = pull(store, wordpress, "1")
+
+    assert output.splitlines()[1:] == [
+        "=  1  content/post-1.md  linked; already identical",
+        "Pulled 1 post (1 linked).",
+    ]
+    assert [r for r in wordpress.requests if "/wp-content/" in r.url.path] == []
+    images = tmp_path / "content/images/2026/01"
+    assert [p.name for p in images.iterdir()] == ["sunset-1024x768.jpg"]
     status, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
     assert output.startswith("No local changes.")
 
@@ -241,9 +261,10 @@ def test_a_missing_image_is_reported_and_the_post_still_converts(
     ]
     body = (tmp_path / "content/post-1.md").read_text()
     assert (
-        "![Sunset](images/sunset-1024x768.jpg)\n\n![](images/gone-1024x768.jpg)" in body
+        "![Sunset](images/2026/01/sunset-1024x768.jpg)\n\n![](images/2026/01/gone-1024x768.jpg)"
+        in body
     )
-    assert sorted(p.name for p in (tmp_path / "content/images").iterdir()) == [
+    assert sorted(p.name for p in (tmp_path / "content/images/2026/01").iterdir()) == [
         "sunset-1024x768.jpg"
     ]
 
@@ -282,7 +303,7 @@ def test_a_missing_image_stays_counted_until_a_pull_restores_it_under_your_edits
         "Restored 1 image; 1 post with local changes.",
     ]
     assert post.read_text() == edited
-    assert (tmp_path / "content/images/gone-1024x768.jpg").exists()
+    assert (tmp_path / "content/images/2026/01/gone-1024x768.jpg").exists()
     assert issues() == "-"
 
 
@@ -326,7 +347,7 @@ def test_a_failed_download_stops_the_pull_without_leaving_part_of_a_post(
     status, output, _ = pull(store, wordpress)
     assert status == 0
     assert "Pulled 2 posts (2 new), 2 images." in output
-    assert sorted(p.name for p in (tmp_path / "content/images").iterdir()) == [
+    assert sorted(p.name for p in (tmp_path / "content/images/2026/01").iterdir()) == [
         "gone-1024x768.jpg",
         "sunset-1024x768.jpg",
     ]
@@ -346,7 +367,7 @@ def test_images_kept_inside_html_are_not_downloaded(tmp_path, store):
     status, output, _ = pull(store, wordpress)
 
     assert "+  2  content/post-2.md  kept as HTML: core/image" in output
-    assert sorted(p.name for p in (tmp_path / "content/images").iterdir()) == [
+    assert sorted(p.name for p in (tmp_path / "content/images/2026/01").iterdir()) == [
         "sunset-1024x768.jpg"
     ]
     assert not any("kept" in r.url.path for r in wordpress.requests)

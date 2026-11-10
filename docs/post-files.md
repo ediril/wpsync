@@ -78,8 +78,13 @@ are an error.
 
 An image's path is relative to the post file that shows it, as Markdown editors
 such as VS Code and Obsidian read it, so their previews show the image. Pull
-saves images in `content/images/`: a post in `content/` refers to
-`images/photo.png`, and one in `content/2019/` to `../images/photo.png`. An
+saves images in `content/images/`, in the same folders WordPress keeps them
+in: an image uploaded to `wp-content/uploads/2025/11/photo.png` becomes
+`content/images/2025/11/photo.png`. Two uploads with the same file name in
+different months therefore never collide, and an image is saved at the same
+path on every pull. A post in `content/` refers to
+`images/2025/11/photo.png`, and one in `content/2019/` to
+`../images/2025/11/photo.png`. An
 image you add can be anywhere in the profile folder, so an editor that saves
 pasted images next to the post works too. Moving a post into another folder
 breaks its relative image paths, as it does in any Markdown editor.

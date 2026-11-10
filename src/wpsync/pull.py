@@ -341,18 +341,25 @@ class Puller:
             if download.path not in used:
                 self.library.release(download)
                 continue
+            existing = self.root / download.path
+            if existing.is_file():
+                # A file at the image's own upload path is this image, saved
+                # by an earlier pull whose record is gone.
+                files.append((download, existing.read_bytes(), False))
+                continue
             try:
-                files.append((download, self.remote.download(download.url)))
+                files.append((download, self.remote.download(download.url), True))
             except MissingImage:
-                files.append((download, None))
+                files.append((download, None, True))
         pages_gone = [
             url for url in conversion.embedded_pages if not self.remote.available(url)
         ]
         images = []
-        for download, data in files:
+        for download, data, fresh in files:
             checksum = ""
             if data is not None:
-                write_atomic(self.root / download.path, data, mode=0o644)
+                if fresh:
+                    write_atomic(self.root / download.path, data, mode=0o644)
                 checksum = hashlib.sha256(data).hexdigest()
             image = MediaRecord(
                 download.path, checksum, download.media_id, download.url, download.size
@@ -363,7 +370,7 @@ class Puller:
         missing = [
             record.url for record in shown if record and not record.checksum
         ] + pages_gone
-        fetched = sum(data is not None for _, data in files)
+        fetched = sum(data is not None and fresh for _, data, fresh in files)
         self.result.images += fetched
         self.result.missing_files += len(missing)
         details = []

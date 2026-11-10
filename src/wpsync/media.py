@@ -57,7 +57,7 @@ class MediaLibrary:
     def remember(self, url: str, media_id: str, size: str) -> PurePosixPath:
         path = self.by_url.get(url)
         if path is None:
-            path = self._free_path(url, media_id)
+            path = self._local_path(url, media_id)
             self.by_url[url] = path
             self.pending[path] = Download(path, url, media_id, size)
         return path
@@ -86,6 +86,20 @@ class MediaLibrary:
 
     def at_url(self, url: str) -> MediaRecord:
         return self.by_path[self.by_url[url]]
+
+    def _local_path(self, url: str, media_id: str) -> PurePosixPath:
+        """Where a library image is saved: its upload path, mirrored.
+
+        WordPress keeps file names unique within each upload folder, so the
+        path after uploads/ belongs to this image alone and is the same on
+        every pull. An image from elsewhere gets a free name instead.
+        """
+        address = unquote(urlsplit(url).path)
+        if "/uploads/" in address:
+            parts = [part for part in address.split("/uploads/", 1)[1].split("/")]
+            if all(part not in ("", ".", "..") for part in parts):
+                return PurePosixPath(IMAGES_DIR, *parts)
+        return self._free_path(url, media_id)
 
     def _free_path(self, url: str, media_id: str) -> PurePosixPath:
         name = unquote(PurePosixPath(urlsplit(url).path).name) or f"image-{media_id}"

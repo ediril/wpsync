@@ -36,7 +36,9 @@ def test_delete_keeps_the_post_and_its_own_images_in_trash_until_restored(
     )
     assert wordpress.deleted == [("posts", 1), ("media", 42)]
     assert (tmp_path / ".trash/content/post-1.md").read_text() == post
-    assert sorted(p.name for p in (tmp_path / ".trash/content/images").iterdir()) == [
+    assert sorted(
+        p.name for p in (tmp_path / ".trash/content/images/2026/01").iterdir()
+    ) == [
         "shared.jpg",
         "sunset-1024x768.jpg",
     ]
@@ -49,7 +51,7 @@ def test_delete_keeps_the_post_and_its_own_images_in_trash_until_restored(
         "Restored content/post-1.md; push puts it back on the blog.\n",
     )
     assert not (tmp_path / ".trash/content/post-1.md").exists()
-    assert (tmp_path / "content/images/sunset-1024x768.jpg").exists()
+    assert (tmp_path / "content/images/2026/01/sunset-1024x768.jpg").exists()
 
     _, output, _ = run(store, wordpress, "push")
     assert output.splitlines()[-2:] == [

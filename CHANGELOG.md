@@ -36,7 +36,8 @@
   file and address on the blog on their own lines. `show ID|SLUG` gives one post's details and lists its
   issues, finding the post by ID, slug, file, or title.
 - `pull [ID|SLUG]` brings posts into `content/<slug>.md` and downloads the
-  images they display into `content/images/`, referred to relative to each post
+  images they display into `content/images/`, in the same year and month
+  folders as WordPress's uploads, referred to relative to each post
   file so Markdown editors preview them. Edited files are replaced, and unlinked
   files are linked with WordPress's changes, only after confirmation or
   `--yes`. A file that WordPress's version would only fill in is linked without

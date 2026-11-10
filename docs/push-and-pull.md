@@ -83,7 +83,6 @@ Pushed 2 posts (1 new, 1 updated), 1 image; 1 skipped. Rerun with --yes to accep
 - Local images are uploaded to the media library once and sent as WordPress image
   markup. An image file you replace is uploaded again. See
   [Images](post-files.md#images) for where image files can live.
-- A post without a title is skipped.
 - Push deletes nothing on the blog unless you pass `-p` / `--prune`. With it,
   each post whose file you deleted is deleted from the blog, as `delete` does
   (see [Deleting posts](#deleting-posts)). Its current version is saved in

@@ -6,13 +6,13 @@ import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path, PurePosixPath
 
 from wpsync.posts import ContentFormat
 
 STATE_PATH = Path(".wpsync") / "state.db"
-SCHEMA_VERSION = 4
+SCHEMA_VERSION = 5
 SCHEMA = """
 CREATE TABLE site (
     id INTEGER PRIMARY KEY CHECK (id = 1),
@@ -20,7 +20,7 @@ CREATE TABLE site (
 );
 CREATE TABLE posts (
     post_id TEXT PRIMARY KEY,
-    path TEXT NOT NULL UNIQUE,
+    path TEXT NOT NULL,
     body_checksum TEXT NOT NULL,
     fields_checksum TEXT NOT NULL,
     remote_fingerprint TEXT NOT NULL,
@@ -71,7 +71,10 @@ class MediaRecord:
 def _check_site(connection: sqlite3.Connection, path: Path, api_root: str) -> None:
     version = connection.execute("PRAGMA user_version").fetchone()[0]
     if version != SCHEMA_VERSION:
-        raise StateError(f"{path} is not a version {SCHEMA_VERSION} wpsync database")
+        raise StateError(
+            f"{path} is from another version of wpsync; move it aside and run "
+            "wpsync pull to rebuild it"
+        )
     row = connection.execute("SELECT api_root FROM site").fetchone()
     if row is None or row[0] != api_root:
         recorded = row[0] if row else "no blog"
@@ -170,6 +173,28 @@ class StateWriter:
                 record.size,
             ),
         )
+
+
+def follow_moves(
+    root: Path,
+    api_root: str,
+    records: dict[str, PostRecord],
+    paths: dict[str, PurePosixPath],
+) -> dict[str, PostRecord]:
+    """The records with each post's path updated to where its file is now.
+
+    A post is its ID; its path is only where its file was last seen.
+    """
+    moved = {
+        post_id: replace(record, path=paths[post_id])
+        for post_id, record in records.items()
+        if post_id in paths and paths[post_id] != record.path
+    }
+    if moved:
+        with write_state(root, api_root) as state:
+            for record in moved.values():
+                state.save(record)
+    return {**records, **moved}
 
 
 @contextmanager

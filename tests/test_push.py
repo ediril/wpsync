@@ -1,3 +1,5 @@
+import re
+
 from wordpress_fake import FakeWordPress, add_profile, invoke
 
 IMAGE = "https://blog.test/wp-content/uploads/2026/01/sunset-1024x768.jpg"
@@ -22,20 +24,21 @@ def pulled_blog(tmp_path, store):
     return wordpress, tmp_path / "content/post-1.md"
 
 
-def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
+def test_an_untitled_post_publishes_and_keeps_its_id_through_a_rename_and_title(
     tmp_path, store
 ):
     wordpress = FakeWordPress(post_count=2)
     add_profile(store, "myblog", tmp_path)
 
     status, output, _ = invoke(
-        ["myblog", "create", "hello-world"], store, wordpress=wordpress, password=None
+        ["myblog", "create"], store, wordpress=wordpress, password=None
     )
     assert status == 0
+    [path] = (tmp_path / "content").glob("*.md")
+    assert re.fullmatch(r"\d{4}-\d{2}-\d{2}-\d{4}\.md", path.name)
     assert output == (
-        "Created content/hello-world.md (private; set status: public to publish it).\n"
+        f"Created content/{path.name} (private; set status: public to publish it).\n"
     )
-    path = tmp_path / "content/hello-world.md"
     assert path.read_text() == (
         "---\ntitle: ''\nstatus: private\ncategories: []\ntags: []\n---\n"
     )
@@ -45,25 +48,17 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
     assert wordpress.requests == []
 
     path.write_text(path.read_text().replace("private", "public") + "\nFirst *post*.\n")
-    _, output, _ = run(store, wordpress, "push")
-    assert output.splitlines()[-2:] == [
-        "?  -  content/hello-world.md  no title; push needs one",
-        "Nothing to push; 1 skipped.",
-    ]
-    assert wordpress.saved == []
-
-    path.write_text(path.read_text().replace("title: ''", "title: Hello, World!"))
     status, output, errors = run(store, wordpress, "push")
 
     assert (status, errors) == (0, "")
     assert output.splitlines()[1:] == [
-        "+  3  content/hello-world.md  https://blog.test/hello-world/",
+        f"+  3  content/{path.name}  https://blog.test/3/",
         "Pushed 1 post (1 new).",
     ]
     assert wordpress.saved == [
         {
             "content": "<p>First <em>post</em>.</p>",
-            "title": "Hello, World!",
+            "title": "",
             "status": "publish",
             "categories": [],
             "tags": [],
@@ -72,8 +67,8 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
     assert path.read_text() == (
         "---\n"
         "id: 3\n"
-        "title: Hello, World!\n"
-        "slug: hello-world\n"
+        "title: ''\n"
+        "slug: '3'\n"
         "date: 2026-02-01T13:00:00+03:00\n"
         "status: public\n"
         "categories:\n"
@@ -84,14 +79,36 @@ def test_a_created_post_stays_on_disk_until_public_then_push_publishes_it(
         "First *post*.\n"
     )
 
+    renamed = path.with_name("first.md")
+    path.rename(renamed)
+    renamed.write_text(renamed.read_text().replace("title: ''", "title: First"))
+    _, output, _ = run(store, wordpress, "push")
+    assert output == "~  3  content/first.md\nPushed 1 post (1 updated).\n"
+    assert wordpress.post(3)["title"]["raw"] == "First"
+    assert len(wordpress.posts) == 3
+
     wordpress.requests.clear()
     _, output, _ = run(store, wordpress, "diff")
     assert output.startswith("No local changes.")
-    _, output, _ = run(store, wordpress, "push")
-    assert output == "Nothing to push.\n"
     assert wordpress.requests == []
-    _, output, _ = run(store, wordpress, "show", "hello-world")
-    assert "URL:        https://blog.test/hello-world/" in output
+
+
+def test_a_renamed_file_keeps_its_post_when_a_new_file_takes_its_old_name(
+    tmp_path, store
+):
+    wordpress, first = pulled_blog(tmp_path, store)
+    first.rename(first.with_name("renamed.md"))
+    write_post(tmp_path, "post-1.md", "title: New one\nstatus: public\n")
+
+    _, output, _ = run(store, wordpress, "push")
+    assert output.splitlines()[-1] == "Pushed 1 post (1 new)."
+
+    _, output, _ = run(store, wordpress, "diff", "-a")
+    assert output.splitlines() == [
+        "=    3  content/post-1.md",
+        "=    2  content/post-2.md",
+        "=    1  content/renamed.md",
+    ]
 
 
 def test_create_takes_a_title_and_slug_and_never_overwrites(tmp_path, store):

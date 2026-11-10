@@ -120,6 +120,7 @@ class FakeWordPress:
         slug = post["slug"] or re.sub(r"\W+", "-", post["title"]["raw"].lower()).strip(
             "-"
         )
+        slug = slug or str(post["id"])
         taken = {p["slug"] for p in self.posts if p is not post}
         post["slug"] = f"{slug}-2" if slug in taken else slug
         post["link"] = f"https://blog.test/{post['slug']}/"

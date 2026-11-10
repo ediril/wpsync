@@ -39,7 +39,13 @@ from wpsync.editors import Editor, EditorError, editor_command, launch
 from wpsync.posts import Post, PostStatus, PostSummary, RemoteState
 from wpsync.pull import Puller
 from wpsync.push import Pusher
-from wpsync.state import PostRecord, StateError, read_media, read_records
+from wpsync.state import (
+    PostRecord,
+    StateError,
+    follow_moves,
+    read_media,
+    read_records,
+)
 from wpsync.sync import Action, DiffEntry, SelectionError, compare, select
 from wpsync.trash import TrashError, delete_post, restore_post
 from wpsync.wordpress.client import WordPressClient, WordPressError, discover_api_root
@@ -311,15 +317,20 @@ def build_parser() -> argparse.ArgumentParser:
         "create",
         help="start a new post file",
         usage=(
-            "wpsync create FILE [-t TITLE] [-s SLUG]\n"
-            "       wpsync PROFILE create FILE [-t TITLE] [-s SLUG]"
+            "wpsync create [FILE] [-t TITLE] [-s SLUG]\n"
+            "       wpsync PROFILE create [FILE] [-t TITLE] [-s SLUG]"
         ),
         description=(
             "Start a private post under content/. Set its status to public when push "
-            "should publish it; push needs a title by then."
+            "should publish it. A post may stay untitled."
         ),
     )
-    create.add_argument("file", metavar="FILE", help="file name under content/")
+    create.add_argument(
+        "file",
+        nargs="?",
+        metavar="FILE",
+        help="file name under content/; the date and time when omitted",
+    )
     create.add_argument("-t", "--title", default="", help="the post's title")
     create.add_argument(
         "-s", "--slug", help="the post's address; WordPress assigns one when omitted"
@@ -705,12 +716,25 @@ def _create(arguments: argparse.Namespace, session: _Session) -> str:
         ]
         if users:
             raise SelectionError(f"slug '{slug}' is used by {users[0]}")
-    relative = _new_file(arguments.file)
+    if arguments.file is None:
+        relative = _timestamp_file(root, datetime.now())
+    else:
+        relative = _new_file(arguments.file)
     path = root / relative
     if path.exists():
         raise SelectionError(f"{relative} already exists")
     write_document(path, Document(None, Post(title=arguments.title, slug=slug)))
     return f"Created {relative} (private; set status: public to publish it)."
+
+
+def _timestamp_file(root: Path, now: datetime) -> PurePosixPath:
+    """A free file name under the posts folder from the current time."""
+    stem = f"{now:%Y-%m-%d-%H%M}"
+    for name in (stem, *(f"{stem}-{n}" for n in range(2, 100))):
+        relative = PurePosixPath(CONTENT_DIR, f"{name}.md")
+        if not (root / relative).exists():
+            return relative
+    raise SelectionError(f"too many posts named {stem} in {CONTENT_DIR}/")
 
 
 def _new_file(name: str) -> PurePosixPath:
@@ -1060,7 +1084,7 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> str:
     yes = arguments.yes
     documents = scan_documents(root)
     ids, slug = _pull_target(arguments.post, documents, root, base)
-    records = read_records(root, profile.api_root)
+    records = _follow_files(profile, documents)
 
     client = WordPressClient(
         profile.api_root, profile.username, session.password(profile), session.transport
@@ -1091,13 +1115,27 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> str:
     return summary
 
 
+def _follow_files(
+    profile: Profile, documents: list[LocalDocument]
+) -> dict[str, PostRecord]:
+    """The post records, with each path following its file if it moved."""
+    root = profile.local_root
+    paths = {
+        item.document.post_id: PurePosixPath(item.path)
+        for item in documents
+        if item.document.post_id is not None
+    }
+    return follow_moves(
+        root, profile.api_root, read_records(root, profile.api_root), paths
+    )
+
+
 def _push(arguments: argparse.Namespace, session: _Session) -> str:
     profile, base = _profile_root(arguments, session)
     root = profile.local_root
-    records = read_records(root, profile.api_root)
-    selection = select(
-        arguments.post, scan_documents(root), records, root=root, base=base
-    )
+    documents = scan_documents(root)
+    records = _follow_files(profile, documents)
+    selection = select(arguments.post, documents, records, root=root, base=base)
     lazy = _LazyRemote(profile, session)
     opened: list[WordPressRemote] = []
 

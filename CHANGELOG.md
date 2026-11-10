@@ -46,7 +46,9 @@
   other than an image, is reported, and the post still converts. Later pulls
   add the file if the server has it again.
   Iframes showing uploaded files are checked too.
-- `create FILE [-t TITLE] [-s SLUG]` starts a private post file under `content/`.
+- `create [FILE] [-t TITLE] [-s SLUG]` starts a private post file under
+  `content/`, named after the date and time when no file is given. A post may
+  stay untitled; WordPress then uses its ID as its address.
 - `open ID|SLUG` opens a post's file in Obsidian or VS Code, chosen with
   `editor [obsidian|vscode]` and saved in `~/.wpsync/config.json`; both ask
   when no editor is chosen.

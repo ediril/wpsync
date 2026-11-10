@@ -345,7 +345,6 @@ def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
         summaries = remote.post_summaries()
         for document in new:
             entries.append(_new_entry(document, summaries))
-    entries = [_require_title(entry) for entry in entries]
     entries.sort(key=lambda entry: str(entry.path))
     return Diff(entries, notes)
 
@@ -381,20 +380,6 @@ def _trash_entry(record: PostRecord, state: RemoteState | None) -> DiffEntry:
         path,
         "deletes on push",
         DeleteStep(post_id),
-    )
-
-
-def _require_title(entry: DiffEntry) -> DiffEntry:
-    """A post push would publish or update cannot go without a title."""
-    step = entry.step
-    if (
-        not isinstance(step, PushStep)
-        or step.unpublish
-        or step.document.document.post.title.strip()
-    ):
-        return entry
-    return replace(
-        entry, action=Action.CONFLICT, detail="no title; push needs one", step=None
     )
 
 

@@ -90,9 +90,11 @@ Markdown images, `![alt](path)`, and sends `![[photo.png]]` as plain text.
 
 ## Starting a post
 
-`create` starts a post file under `content/`. The title and slug can wait:
+`create` starts a post file under `content/`. The file name, title, and slug
+can all wait:
 
 ```console
+wpsync create                                  # content/2026-11-10-1432.md, from the time
 wpsync create idea                             # content/idea.md
 wpsync create drafts/hello -t "Hello, World!"  # content/drafts/hello.md, with a title
 wpsync create hello -s hello-again             # choose the slug
@@ -108,8 +110,15 @@ tags: []
 ```
 
 A new post is private, so nothing is published until you set `status: public`
-and run `push`. Push skips a post with no title. Without a slug, WordPress
-assigns one when the post is created. `create` never overwrites a file and only
+and run `push`. A post can stay untitled, which suits short pieces: WordPress
+shows it without a title, and its address uses its ID, such as
+`https://example.com/203/`, unless you set a slug. Without a slug, WordPress
+assigns one from the title when the post is created.
+
+You can rename or move a post's file and change its title at any time. The
+`id` in its header ties the file to its post, so push updates the same post
+instead of creating a new one. Moving a file to another folder breaks its
+relative image paths, as in any Markdown editor. `create` never overwrites a file and only
 touches local files.
 
 ## Opening a post

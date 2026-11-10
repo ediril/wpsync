@@ -36,6 +36,10 @@
   WordPress's output.
 - The agreed MVP design is recorded in `decisions/`. Read those notes before
   changing content conversion, sync state, matching, or prompts.
+- The repository is public. Secrets, such as the license-signing key or a
+  payment webhook secret, live only in environment variables; code and docs
+  refer to them by variable name. Notes that should not be public go in the
+  git-ignored `private/` folder; plans and decisions may be public.
 - The user has several real WordPress blogs for testing later. Pull and diff
   are read-only and safe to try first; push testing starts with drafts or a
   blog the user designates.

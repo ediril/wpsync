@@ -55,6 +55,8 @@ rationale, and [`plans/`](../plans/) holds future work. CLI conventions and
 current usage are documented in the README; smaller changes are explained in
 commit messages.
 
+The self-contained PHP 8.3 project site is in [`website/`](../website/README.md).
+
 WordPress-specific code lives in `src/wpsync/wordpress/`. The sync engine, the
 post file format, and project state stay platform-neutral so other blogging
 platforms can be added later.

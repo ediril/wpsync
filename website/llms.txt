@@ -1,0 +1,30 @@
+# WPSync
+
+> WPSync is a command-line tool for managing WordPress blog posts as local Markdown files: map a folder to a blog, pull its posts, edit them in any editor, preview the differences, and push the changes back.
+
+WPSync is for writers who would rather work in a Markdown editor, such as VS Code or Obsidian, than in the WordPress editor. Local files are the source of truth. Each post is a Markdown file under `content/` with a YAML header; images live in `content/images/` with paths relative to each post. New posts are private until marked public. Pull asks before replacing an edited file, and push asks before replacing a post that also changed on WordPress. Push deletes nothing unless `-p` / `--prune` is given; deleted posts are kept in the profile folder's `.trash/` and can be restored. WordPress is the first supported platform.
+
+## Licensing and pricing
+
+WPSync is source-available under PolyForm Strict 1.0.0. Use is free of charge for any noncommercial purpose, the listed personal uses without any anticipated commercial application, and use by the organizations listed in the license regardless of funding source or obligations resulting from funding. This license grants no rights to modify, redistribute, or create works based on WPSync. The full license governs; this summary grants no additional permissions. Commercial use outside those permissions requires a separate paid agreement before use. Contact emrah@diril.org for commercial pricing and licensing questions.
+
+WordPress is a trademark of the WordPress Foundation. WPSync is an independent project, not affiliated with or endorsed by the WordPress Foundation or Automattic.
+
+## Documentation
+
+- [README](https://github.com/ediril/wpsync/blob/main/README.md): Installation, quick start, and a command overview.
+- [Profiles and credentials](https://github.com/ediril/wpsync/blob/main/docs/profiles.md): Application Passwords, profiles, and running commands from anywhere.
+- [Post files](https://github.com/ediril/wpsync/blob/main/docs/post-files.md): The header and body format, images, starting a post, and opening it in an editor.
+- [Pull and push](https://github.com/ediril/wpsync/blob/main/docs/push-and-pull.md): What each changes, when they ask, and deleting and restoring posts.
+- [Listing posts and diff](https://github.com/ediril/wpsync/blob/main/docs/listing-and-diff.md): `ls`, `show`, issues, and diff's status markers.
+- [Changelog](https://github.com/ediril/wpsync/blob/main/CHANGELOG.md): Version history and completed behavior changes.
+- [License](https://github.com/ediril/wpsync/blob/main/LICENSE): Full PolyForm Strict 1.0.0 terms defining permitted uses and restrictions. Commercial use outside those permissions requires a separate paid license. Contact emrah@diril.org for pricing.
+
+## Source
+
+- [GitHub repository](https://github.com/ediril/wpsync): Source code, issue tracker, and project files.
+
+## Optional
+
+- [Development and maintenance](https://github.com/ediril/wpsync/blob/main/docs/development.md): Testing local changes, switching installs, and releasing.
+- [Work queue](https://github.com/ediril/wpsync/blob/main/TODO.md): Planned work.

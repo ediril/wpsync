@@ -3,7 +3,7 @@
 WPSync (`wpsync`) is a command-line tool for managing blog posts as local
 Markdown files: map a folder to a blog, pull its posts, edit them in any
 editor, preview the differences, and push the changes back. WordPress is the
-first supported platform.
+first supported platform. Website: [wpsync.dev](https://wpsync.dev).
 
 WPSync is pre-alpha software. Profiles, pull, diff, and push work today;
 commands and the post file format may change before a stable release.

@@ -10,8 +10,10 @@ http://localhost:8000 (pass another port as the argument):
 ./scripts/run_server.sh
 ```
 
-Deploy the contents of `website/`, including `.htaccess`, directly into the
-site's remote document root. The page uses Google Fonts for Space Mono and IBM
+The site is served at https://wpsync.dev. Deploy the contents of `website/`,
+including `.htaccess`, directly into that site's remote document root. `.dev`
+domains are HTTPS-only in every browser, so the host needs a TLS certificate
+for the domain. The page uses Google Fonts for Space Mono and IBM
 Plex Mono; the content security policy in `.htaccess` permits only those font
 resources in addition to same-origin assets.
 

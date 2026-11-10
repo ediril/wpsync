@@ -25,6 +25,12 @@ classifiers = [
   "Programming Language :: Python :: 3",
 ]
 
+[project.urls]
+Homepage = "https://wpsync.dev"
+Changelog = "https://github.com/ediril/wpsync/blob/main/CHANGELOG.md"
+Issues = "https://github.com/ediril/wpsync/issues"
+Repository = "https://github.com/ediril/wpsync.git"
+
 [project.scripts]
 wpsync = "wpsync.cli:main"
 

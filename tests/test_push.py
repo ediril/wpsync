@@ -312,6 +312,42 @@ def test_a_local_image_uploads_once_and_is_sent_as_library_markup(tmp_path, stor
     assert len(wordpress.uploads) == 2
 
 
+def test_a_replaced_image_counts_as_a_change_to_the_post_that_shows_it(tmp_path, store):
+    wordpress = FakeWordPress(post_count=1)
+    add_profile(store, "myblog", tmp_path)
+    (tmp_path / "content/images").mkdir(parents=True)
+    image = tmp_path / "content/images/cat.png"
+    image.write_bytes(b"cat")
+    write_post(
+        tmp_path, "top.md", "title: Top\nstatus: public\n", "![](images/cat.png)"
+    )
+
+    _, output, _ = run(store, wordpress, "diff")
+    assert output.splitlines() == [
+        "     content/",
+        "       images/",
+        "+  l     cat.png",
+        "+  l   top.md",
+    ]
+    run(store, wordpress, "push")
+
+    image.write_bytes(b"a better cat")
+    _, output, _ = run(store, wordpress, "diff")
+    assert output.splitlines() == [
+        "     content/",
+        "       images/",
+        "~        cat.png",
+        "~      top.md",
+    ]
+    _, output, _ = run(store, wordpress, "push")
+    assert output.splitlines() == [
+        "  ~ content/images/cat.png",
+        "  ~ content/top.md",
+        "Push complete: 2 changes.",
+    ]
+    assert 'class="wp-image-902"' in wordpress.post(2)["content"]["raw"]
+
+
 def test_a_gif_is_shown_at_its_original_size_so_it_stays_animated(tmp_path, store):
     wordpress = FakeWordPress(post_count=1)
     add_profile(store, "myblog", tmp_path)

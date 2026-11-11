@@ -904,7 +904,13 @@ def _diff(arguments: argparse.Namespace, session: _Session) -> str:
     )
     remote = _LazyRemote(profile, session)
     try:
-        result = compare(selection, remote, arguments.prune)
+        result = compare(
+            selection,
+            remote,
+            root=root,
+            media=read_media(root, profile.api_root),
+            prune=arguments.prune,
+        )
     finally:
         remote.close()
     if not result.entries:
@@ -1239,8 +1245,9 @@ def _push(arguments: argparse.Namespace, session: _Session) -> str:
         opened.append(WordPressRemote(client, session.transport))
         return opened[0]
 
+    media = read_media(root, profile.api_root)
     try:
-        plan = compare(selection, lazy, arguments.prune)
+        plan = compare(selection, lazy, root=root, media=media, prune=arguments.prune)
         for note in plan.notes:
             print(f"Note: {note}", file=session.stdout, flush=True)
         pusher = Pusher(
@@ -1248,7 +1255,7 @@ def _push(arguments: argparse.Namespace, session: _Session) -> str:
             profile.api_root,
             connect,
             records,
-            read_media(root, profile.api_root),
+            media,
             _confirmer(session, arguments.yes),
             _reporter(session),
         )

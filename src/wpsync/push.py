@@ -206,7 +206,7 @@ class Pusher:
             # Saved at once, so a failure below cannot upload it twice.
             with write_state(self.root, self.api_root) as state:
                 state.save_media(record)
-            self._report(Action.NEW, path)
+            self._report(Action.NEW if known is None else Action.CHANGED, path)
 
     def _record(
         self,

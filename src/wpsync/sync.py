@@ -16,8 +16,9 @@ from wpsync.documents import (
     body_checksum,
     fields_checksum,
 )
+from wpsync.media import file_checksum, post_images
 from wpsync.posts import Post, PostStatus, PostSummary, RemoteState
-from wpsync.state import PostRecord
+from wpsync.state import MediaRecord, PostRecord
 
 C = TypeVar("C", bound="Candidate")
 
@@ -227,10 +228,19 @@ def _typo_notes(document: LocalDocument) -> list[str]:
     return notes
 
 
-def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
+def compare(
+    selection: Selection,
+    remote: Remote,
+    *,
+    root: Path,
+    media: list[MediaRecord],
+    prune: bool = False,
+) -> Diff:
     """Classify the selected posts, contacting the remote only when needed.
 
-    With prune, a post whose file was deleted is deleted from the blog.
+    The images the sent posts show are listed too: a new or replaced image is
+    uploaded, so a post that shows one changes even if its file did not. With
+    prune, a post whose file was deleted is deleted from the blog.
     """
     entries: list[DiffEntry] = []
     changed: dict[str, tuple[LocalDocument, list[str]]] = {}
@@ -342,8 +352,58 @@ def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
         summaries = remote.post_summaries()
         for document in new:
             entries.append(_new_entry(document, summaries))
+    entries = _with_images(entries, selection.documents, root, media)
     entries.sort(key=lambda entry: str(entry.path))
     return Diff(entries, notes)
+
+
+def _with_images(
+    entries: list[DiffEntry],
+    documents: list[LocalDocument],
+    root: Path,
+    media: list[MediaRecord],
+) -> list[DiffEntry]:
+    """Add the images push would upload, and mark the posts that show them."""
+    library = {record.path: record for record in media}
+    by_path = {PurePosixPath(item.path): item for item in documents}
+    uploads: dict[PurePosixPath, Action] = {}
+    result = []
+    for entry in entries:
+        document = by_path.get(entry.path)
+        sent = entry.action is Action.UNCHANGED or (
+            isinstance(entry.step, PushStep) and not entry.step.unpublish
+        )
+        if document is None or not sent:
+            result.append(entry)
+            continue
+        changed = False
+        for image in sorted(post_images(entry.path, document.document.post.body)):
+            action = _image_upload(root / image, library.get(image))
+            if action is not None:
+                uploads[image] = action
+                changed = True
+        if changed and entry.action is Action.UNCHANGED:
+            step = PushStep(document, target=entry.post_id, fields=False)
+            entry = DiffEntry(Action.CHANGED, "", entry.post_id, entry.path, step)
+        elif changed and isinstance(entry.step, PushStep):
+            entry = replace(entry, step=replace(entry.step, content=True))
+        result.append(entry)
+    result.extend(
+        DiffEntry(action, "l" if action is Action.NEW else "", None, image)
+        for image, action in uploads.items()
+    )
+    return result
+
+
+def _image_upload(file: Path, record: MediaRecord | None) -> Action | None:
+    """Whether push uploads an image file: new, replaced, or not at all."""
+    if not file.is_file():
+        return None
+    if record is None:
+        return Action.NEW
+    if record.checksum and file_checksum(file) != record.checksum:
+        return Action.CHANGED
+    return None
 
 
 def _trash_entry(record: PostRecord, state: RemoteState | None) -> DiffEntry:

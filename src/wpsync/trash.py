@@ -18,8 +18,7 @@ from wpsync.documents import (
     scan_documents,
     write_document,
 )
-from wpsync.markup.markdown import image_sources
-from wpsync.media import image_path
+from wpsync.media import post_images
 from wpsync.state import MediaRecord, read_media, write_state
 
 
@@ -47,17 +46,6 @@ class Deleted:
     """Where the post's file is now."""
     media: list[PurePosixPath]
     """Library images deleted from the blog."""
-
-
-def post_images(path: PurePosixPath, body: str) -> set[PurePosixPath]:
-    """The images in the profile folder that a post file shows."""
-    return {
-        image
-        for source in image_sources(body)
-        if (image := image_path(path, source)) is not None
-        and not image.is_absolute()
-        and ".." not in image.parts
-    }
 
 
 def delete_post(

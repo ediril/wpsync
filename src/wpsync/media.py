@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import hashlib
 import posixpath
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
@@ -9,6 +10,7 @@ from typing import Protocol
 from urllib.parse import unquote, urlsplit
 
 from wpsync.documents import CONTENT_DIR
+from wpsync.markup.markdown import image_sources
 from wpsync.state import MediaRecord
 
 IMAGES_DIR = f"{CONTENT_DIR}/images"
@@ -141,3 +143,19 @@ def image_path(post: PurePosixPath, source: str) -> PurePosixPath | None:
         return None
     joined = posixpath.join(post.parent.as_posix(), unquote(source))
     return PurePosixPath(posixpath.normpath(joined))
+
+
+def file_checksum(path: Path) -> str:
+    """The checksum the media table keeps for an image file."""
+    return hashlib.sha256(path.read_bytes()).hexdigest()
+
+
+def post_images(path: PurePosixPath, body: str) -> set[PurePosixPath]:
+    """The images in the profile folder that a post file shows."""
+    return {
+        image
+        for source in image_sources(body)
+        if (image := image_path(path, source)) is not None
+        and not image.is_absolute()
+        and ".." not in image.parts
+    }

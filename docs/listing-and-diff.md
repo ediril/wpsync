@@ -91,6 +91,12 @@ indented beneath them. The status has three slots:
 - where the post exists: `l` only as a local file, `r` only on WordPress, blank
   on both sides.
 
+Diff also lists the images push would upload: `+  l` for an image not on the
+blog yet, and `~` for one whose file you replaced since it was uploaded. A
+replaced image changes every post that shows it, even if the post's file did
+not change, so those posts show as `~` too, and push uploads the new image and
+points them at it.
+
 Unchanged posts are shown with `-a`, private ones with `-x`, and posts whose
 file you deleted, which push keeps on the blog (`   r`), with `-a` or `-p`.
 `wpsync --legend` explains each symbol.

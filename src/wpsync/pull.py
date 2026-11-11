@@ -13,6 +13,7 @@ from wpsync.documents import (
     Document,
     LocalDocument,
     body_checksum,
+    display_path,
     fields_checksum,
     parse_document,
     serialize_document,
@@ -76,7 +77,7 @@ class PullResult:
         ):
             if paths:
                 lines.append(heading)
-                lines.extend(f"  {path}" for path in paths)
+                lines.extend(f"  {display_path(path)}" for path in paths)
         return "\n".join(lines)
 
 

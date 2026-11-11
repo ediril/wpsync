@@ -16,7 +16,8 @@ from wpsync.documents import (
     body_checksum,
     fields_checksum,
 )
-from wpsync.media import file_checksum, post_images
+from wpsync.markup.markdown import image_sources
+from wpsync.media import file_checksum, image_path, post_images
 from wpsync.posts import Post, PostStatus, PostSummary, RemoteState
 from wpsync.state import MediaRecord, PostRecord
 
@@ -386,12 +387,29 @@ def _with_images(
         if document is None or not sent:
             result.append(entry)
             continue
+        body = document.document.post.body
+        problems = (
+            []
+            if entry.action is Action.UNCHANGED
+            else _image_problems(entry.path, body, root, library)
+        )
         images = tuple(
             ImageUpload(action, image)
-            for image in sorted(post_images(entry.path, document.document.post.body))
+            for image in sorted(
+                post_images(entry.path, body) | {image for image, _ in problems}
+            )
             if (action := _image_upload(root / image, library.get(image)))
         )
-        if images and entry.action is Action.UNCHANGED:
+        if problems:
+            # Push cannot send a post whose image it cannot upload.
+            entry = DiffEntry(
+                Action.CONFLICT,
+                entry.presence,
+                entry.post_id,
+                entry.path,
+                reason=problems[0][1],
+            )
+        elif images and entry.action is Action.UNCHANGED:
             step = PushStep(document, target=entry.post_id, fields=False)
             entry = DiffEntry(Action.CHANGED, "", entry.post_id, entry.path, step)
         elif images and isinstance(entry.step, PushStep):
@@ -400,10 +418,29 @@ def _with_images(
     return result
 
 
+def _image_problems(
+    post: PurePosixPath,
+    body: str,
+    root: Path,
+    library: dict[PurePosixPath, MediaRecord],
+) -> list[tuple[PurePosixPath, str]]:
+    """The images push cannot upload, as push would report them."""
+    problems = []
+    for source in sorted(image_sources(body)):
+        image = image_path(post, source)
+        if image is None or image in library:
+            continue
+        if image.is_absolute() or ".." in image.parts:
+            problems.append((image, f"image {source} is outside the profile folder"))
+        elif not (root / image).is_file():
+            problems.append((image, f"image not found: {source}"))
+    return problems
+
+
 def _image_upload(file: Path, record: MediaRecord | None) -> Action | None:
-    """Whether push uploads an image file: new, replaced, or not at all."""
+    """Whether push uploads an image file: new, replaced, missing, or not at all."""
     if not file.is_file():
-        return None
+        return None if record is not None else Action.CONFLICT
     if record is None:
         return Action.NEW
     if record.checksum and file_checksum(file) != record.checksum:

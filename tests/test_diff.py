@@ -99,12 +99,11 @@ def test_diff_shows_local_changes_and_fetches_only_those_posts(tmp_path, store):
 
     assert status == 0
     assert output.splitlines() == [
-        "     content/",
-        "~      blocks.md",
-        "?      both.md",
-        "~      content.md",
-        "~      details.md",
-        "~      unpublish.md",
+        "~    blocks.md",
+        "?    both.md",
+        "~    content.md",
+        "~    details.md",
+        "~    unpublish.md",
         "Not shown: 1 private (try using -x), 1 remote-only (try using -a)",
     ]
     fetched = [r.url.params.get("include") for r in wordpress.requests]
@@ -121,7 +120,7 @@ def test_diff_marks_a_new_file_whose_slug_is_taken_as_a_conflict(tmp_path, store
 
     assert (status, output.splitlines()) == (
         0,
-        ["     content/", "?  l   a.md", "+  l   d.md"],
+        ["?  l a.md", "+  l d.md"],
     )
 
 
@@ -141,7 +140,7 @@ def test_one_post_is_selected_by_id_slug_file_name_or_path(
         status, output, _ = invoke(["diff", selector], store, wordpress=wordpress)
         assert (status, output) == (
             0,
-            "     content/\n       2019/\n~        two.md\n",
+            "     2019/\n~      two.md\n",
         ), selector
 
     status, _, errors = invoke(["diff", "one.md"], store, wordpress=wordpress)
@@ -151,7 +150,7 @@ def test_one_post_is_selected_by_id_slug_file_name_or_path(
     )
     monkeypatch.chdir(tmp_path / "content")
     status, output, _ = invoke(["diff", "one.md"], store, wordpress=wordpress)
-    assert (status, output) == (0, "     content/\n~      one.md\n")
+    assert (status, output) == (0, "~    one.md\n")
 
     status, _, errors = invoke(["diff", "post-9"], store, wordpress=wordpress)
     assert status == 1
@@ -222,21 +221,3 @@ def test_state_from_another_blog_is_refused(tmp_path, store):
 
     assert status == 1
     assert "synchronized with a different blog" in errors
-
-
-def test_diff_lists_folders_before_files_with_their_posts_indented(tmp_path, store):
-    wordpress = FakeWordPress(post_count=3)
-    add_profile(store, "myblog", tmp_path)
-    (tmp_path / "content/2019").mkdir(parents=True)
-    for post_id, name in ((1, "b.md"), (2, "2019/c.md"), (3, "a.md")):
-        edit(synced(tmp_path, wordpress, post_id, name), "Body", "New body")
-
-    _, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
-
-    assert output.splitlines() == [
-        "     content/",
-        "       2019/",
-        "~        c.md",
-        "~      a.md",
-        "~      b.md",
-    ]

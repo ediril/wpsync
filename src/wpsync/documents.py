@@ -12,7 +12,7 @@ import json
 import os
 from dataclasses import dataclass
 from datetime import UTC, datetime
-from pathlib import Path
+from pathlib import Path, PurePosixPath
 
 import yaml
 from yaml.nodes import MappingNode, Node, ScalarNode, SequenceNode
@@ -22,6 +22,16 @@ from wpsync.storage import write_text_atomic
 
 CONTENT_DIR = "content"
 TRASH_DIR = ".trash"
+
+
+def display_path(path: str | PurePosixPath) -> str:
+    """A path as output shows it: under content/, which goes without saying."""
+    path = PurePosixPath(path)
+    if path.parts[:1] == (CONTENT_DIR,):
+        path = path.relative_to(CONTENT_DIR)
+    return str(path)
+
+
 FENCE = "---"
 FIELDS = ("id", "title", "slug", "date", "status", "categories", "tags")
 EXAMPLE_HEADER = "---\ntitle: My post\nstatus: public\n---"

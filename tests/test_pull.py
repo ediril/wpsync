@@ -37,9 +37,9 @@ def test_first_pull_writes_posts_and_images_that_diff_then_sees_as_synced(
     assert (status, errors) == (0, "")
     assert output.splitlines() == [
         "Signed in to https://blog.test as 'emrah' (administrator).",
-        "  + content/images/2026/01/sunset-1024x768.jpg",
-        "  + content/post-1.md",
-        "  + content/post-2.md",
+        "  + images/2026/01/sunset-1024x768.jpg",
+        "  + post-1.md",
+        "  + post-2.md",
         "Pull complete: 3 changes.",
     ]
     assert (tmp_path / "content/post-1.md").read_text() == (
@@ -101,8 +101,8 @@ def test_later_pulls_update_unedited_files_and_ask_before_replacing_edits(
 
     assert status == 0
     assert output.splitlines() == [
-        "  ~ content/post-1.md",
-        "  ? content/post-2.md",
+        "  ~ post-1.md",
+        "  ? post-2.md",
         "Pull complete: 1 change; 1 skipped. "
         "Rerun with --yes to accept the skipped changes.",
     ]
@@ -113,7 +113,7 @@ def test_later_pulls_update_unedited_files_and_ask_before_replacing_edits(
     status, output, _ = pull(store, wordpress, "2", "--yes")
 
     assert output.splitlines() == [
-        "  ~ content/post-2.md",
+        "  ~ post-2.md",
         "Pull complete: 1 change.",
     ]
     assert "My edit" not in second.read_text()
@@ -127,13 +127,13 @@ def test_only_a_shared_slug_links_an_unlinked_file_to_a_remote_post(tmp_path, st
 
     status, output, _ = pull(store, wordpress)
 
-    assert "\n  ? content/draft.md\n" in output
+    assert "\n  ? draft.md\n" in output
     names = sorted(p.name for p in (tmp_path / "content").glob("*.md"))
     assert names == ["draft.md", "idea.md", "post-1.md"]
 
     status, output, _ = pull(store, wordpress, "2", stdin=Terminal("y\n"))
 
-    assert output.splitlines()[-2].endswith("  + content/draft.md")
+    assert output.splitlines()[-2].endswith("  + draft.md")
     assert (tmp_path / "content/draft.md").read_text().startswith("---\nid: 2\n")
 
 
@@ -160,7 +160,7 @@ def test_a_file_that_pull_would_only_fill_in_is_linked_without_asking(tmp_path, 
     status, output, _ = pull(store, wordpress, "2")
 
     assert output.splitlines()[1:] == [
-        "  + content/draft.md",
+        "  + draft.md",
         "Pull complete: 1 change.",
     ]
     assert path.read_text().startswith(
@@ -181,7 +181,7 @@ def test_linking_an_identical_file_still_downloads_the_images_it_shows(tmp_path,
     status, output, _ = pull(store, wordpress, "1")
 
     assert output.splitlines()[1:] == [
-        "  + content/images/2026/01/sunset-1024x768.jpg",
+        "  + images/2026/01/sunset-1024x768.jpg",
         "Pull complete: 1 change.",
     ]
     assert image.exists()
@@ -219,9 +219,9 @@ def test_pull_never_deletes_or_restores_files(tmp_path, store):
     assert output.splitlines() == [
         "  Nothing to pull.",
         "Deleted locally, not restored:",
-        "  content/post-1.md",
+        "  post-1.md",
         "Deleted on WordPress, local files kept:",
-        "  content/post-2.md",
+        "  post-2.md",
     ]
     assert not (tmp_path / "content/post-1.md").exists()
     assert (tmp_path / "content/post-2.md").exists()
@@ -252,9 +252,9 @@ def test_a_missing_image_is_reported_and_the_post_still_converts(
 
     assert (status, errors) == (0, "")
     assert output.splitlines()[1:] == [
-        "  + content/images/2026/01/sunset-1024x768.jpg",
-        "  + content/post-1.md",
-        "  + content/post-2.md",
+        "  + images/2026/01/sunset-1024x768.jpg",
+        "  + post-1.md",
+        "  + post-2.md",
         "Pull complete: 3 changes; 1 file missing from the blog.",
     ]
     body = (tmp_path / "content/post-1.md").read_text()
@@ -297,7 +297,7 @@ def test_a_missing_image_stays_counted_until_a_pull_restores_it_under_your_edits
     _, output, _ = pull(store, wordpress)
 
     assert output.splitlines() == [
-        "  + content/images/2026/01/gone-1024x768.jpg",
+        "  + images/2026/01/gone-1024x768.jpg",
         "Pull complete: 1 change.",
     ]
     assert post.read_text() == edited

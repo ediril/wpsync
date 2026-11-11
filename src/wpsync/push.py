@@ -13,6 +13,7 @@ from wpsync.documents import (
     Document,
     LocalDocument,
     body_checksum,
+    display_path,
     fields_checksum,
     parse_document,
     serialize_document,
@@ -262,13 +263,15 @@ class Pusher:
         wanted = step.document.document.post.slug
         if step.fields and wanted and saved.post.slug != wanted:
             self.result.notes.append(
-                f"{entry.path}: WordPress set the slug to {saved.post.slug}"
+                f"{display_path(entry.path)}: WordPress set the slug to "
+                f"{saved.post.slug}"
             )
         if content is not None and not self.remote.keeps_display(
             content, saved.content
         ):
             self.result.notes.append(
-                f"{entry.path}: WordPress changed the content; check the post"
+                f"{display_path(entry.path)}: WordPress changed the content; "
+                "check the post"
             )
         self._report(Action.NEW if step.target is None else Action.CHANGED, entry.path)
 

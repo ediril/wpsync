@@ -74,8 +74,11 @@
 
 ### Changed
 
+- `diff`, `push`, and `pull` show paths relative to `content/`, so only its
+  subfolders appear as folders.
 - `diff` lists the images push would upload under the post that shows them,
-  new (`+  l`) or replaced (`~`). A
+  new (`+  l`) or replaced (`~`), and marks a post whose image is missing or
+  outside the profile folder with `?`, since push cannot send it. A
   replaced image counts as a change to every post that shows it, so push
   uploads it again and updates those posts even if their files did not change.
 - `push` and `pull` print each file they change as HLSync does, `  + path`,

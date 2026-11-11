@@ -32,6 +32,7 @@ from wpsync.documents import (
     Document,
     DocumentError,
     LocalDocument,
+    display_path,
     scan_documents,
     scan_trash,
     write_document,
@@ -946,13 +947,13 @@ def _diff_tree(entries: list[DiffEntry], color: bool) -> list[str]:
     """HLSync's diff layout: status slots, then folders before files, indented."""
 
     def order(entry: DiffEntry) -> list[tuple[int, str]]:
-        *folders, name = entry.path.parts
+        *folders, name = PurePosixPath(display_path(entry.path)).parts
         return [(0, folder) for folder in folders] + [(1, name)]
 
     lines: list[str] = []
     opened: tuple[str, ...] = ()
     for entry in sorted(entries, key=order):
-        *folders, name = entry.path.parts
+        *folders, name = PurePosixPath(display_path(entry.path)).parts
         common = 0
         while common < min(len(opened), len(folders)) and (
             opened[common] == folders[common]
@@ -1175,12 +1176,12 @@ def _reporter(session: _Session) -> Callable[[Outcome], None]:
 
     def report(outcome: Outcome) -> None:
         if outcome.failure:
-            line = f"failed  {outcome.path}: {outcome.failure}"
+            line = f"failed  {display_path(outcome.path)}: {outcome.failure}"
             line = f"{MARKER_COLORS['-']}{line}{RESET}" if color else line
         else:
             marker = outcome.action.value
             style = MARKER_COLORS.get(marker) if color else None
-            line = f"{marker} {outcome.path}"
+            line = f"{marker} {display_path(outcome.path)}"
             line = f"{style}{line}{RESET}" if style else line
         print(f"  {line}", file=session.stdout, flush=True)
 

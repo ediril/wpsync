@@ -1,8 +1,8 @@
 # Work Queue
 
-- [ ] `diff` shows a post push would skip for a missing local image or an image
-  outside the profile folder; today only push finds these. Also report
-  Obsidian-style `![[image]]` embeds, which push would send as plain text.
+- [ ] `diff` reports Obsidian-style `![[image]]` embeds, which push would send
+  as plain text. Decide first whether WPSync should resolve them, and
+  Obsidian's shortest-path image links, as Obsidian does.
 - [ ] `docs/limitations.md`, linked from the README: what WPSync does not do.
   Pages and other post types are not synced, nor featured images or comments
   (lost on `delete`); WordPress-side edits show only through `pull` or a

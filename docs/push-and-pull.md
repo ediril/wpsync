@@ -31,13 +31,13 @@ Pull prints each file it writes, as HLSync does: `+` for a new post or image,
 `~` for an updated post, and `?` for a post it skipped after a question.
 
 ```text
-  + content/images/2025/11/photo.jpg
-  + content/hello-world.md
-  ~ content/release-notes.md
-  ? content/about.md
+  + images/2025/11/photo.jpg
+  + hello-world.md
+  ~ release-notes.md
+  ? about.md
 Pull complete: 3 changes; 1 skipped. Rerun with --yes to accept the skipped changes.
 Deleted on WordPress, local files kept:
-  content/old.md
+  old.md
 ```
 
 A post that cannot be pulled at all shows as `failed`, with the reason, and
@@ -75,13 +75,13 @@ wpsync push -y       # answer yes to every question
 ```
 
 ```text
-  + content/images/photo.png
-  + content/hello-world.md
-  ~ content/release-notes.md
-  ? content/about.md
-  failed  content/draft.md: image not found: images/missing.png
+  + images/photo.png
+  + hello-world.md
+  ~ release-notes.md
+  ? about.md
+  failed  draft.md: image not found: images/missing.png
 Push complete: 3 changes; 2 skipped. Rerun with --yes to accept the skipped changes.
-Note: content/hello-world.md: WordPress set the slug to hello-world-2
+Note: hello-world.md: WordPress set the slug to hello-world-2
 ```
 
 Push prints each file it changes on the blog, as HLSync does: `+` for a new

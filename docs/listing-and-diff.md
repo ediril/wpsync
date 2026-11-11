@@ -73,16 +73,16 @@ wpsync --legend      # explain the diff and ls symbols
 ```
 
 ```text
-     content/
-       2019/
-?        about.md
-+  l   new-idea.md
-~      release-notes.md
+     2019/
+?      about.md
++  l new-idea.md
++  l   images/photo.png
+~    release-notes.md
 Not shown: 1 private (try using -x), 1 remote-only (try using -a)
 ```
 
-Diff uses HLSync's layout. Folders come before files, with their posts
-indented beneath them. The status has three slots:
+Diff uses HLSync's layout. Paths are relative to `content/`, and its folders
+come before files, with their posts indented beneath them. The status has three slots:
 
 - the action: `+` push creates the post, `~` push updates it, `-` push `-p`
   deletes it, `?` a conflict push asks about or cannot send, `=` unchanged;

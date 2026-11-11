@@ -55,8 +55,8 @@ def test_delete_keeps_the_post_and_its_own_images_in_trash_until_restored(
 
     _, output, _ = run(store, wordpress, "push")
     assert output.splitlines()[-3:] == [
-        "  + content/images/2026/01/sunset-1024x768.jpg",
-        "  + content/post-1.md",
+        "  + images/2026/01/sunset-1024x768.jpg",
+        "  + post-1.md",
         "Push complete: 2 changes.",
     ]
     assert len(wordpress.uploads) == 1
@@ -77,15 +77,14 @@ def test_push_prune_deletes_posts_whose_files_were_deleted_keeping_a_copy(
     assert output == "  Nothing to push.\n"
     _, output, _ = run(store, wordpress, "diff", "-p")
     assert output.splitlines() == [
-        "     content/",
-        "-  r   post-1.md",
-        "?  r   post-2.md",
+        "-  r post-1.md",
+        "?  r post-2.md",
     ]
 
     _, output, _ = run(store, wordpress, "push", "-p")
     assert output.splitlines() == [
-        "  - content/post-1.md",
-        "  ? content/post-2.md",
+        "  - post-1.md",
+        "  ? post-2.md",
         "Push complete: 1 change; 1 skipped. "
         "Rerun with --yes to accept the skipped changes.",
     ]

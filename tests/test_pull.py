@@ -188,7 +188,7 @@ def test_linking_an_identical_file_still_downloads_the_images_it_shows(tmp_path,
     ]
     assert image.exists()
     assert (tmp_path / "content/post-1.md").read_text() == post
-    status, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
+    status, output, _ = invoke(["myblog", "diff", "1"], store, wordpress=wordpress)
     assert output.startswith("No local changes.")
 
 
@@ -208,7 +208,7 @@ def test_a_rebuilt_state_adopts_images_already_at_their_upload_paths(tmp_path, s
     assert [r for r in wordpress.requests if "/wp-content/" in r.url.path] == []
     images = tmp_path / "content/images/2026/01"
     assert [p.name for p in images.iterdir()] == ["sunset-1024x768.jpg"]
-    status, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
+    status, output, _ = invoke(["myblog", "diff", "1"], store, wordpress=wordpress)
     assert output.startswith("No local changes.")
 
 

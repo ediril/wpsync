@@ -30,8 +30,8 @@
 - `diff [ID|SLUG]` shows local changes in HLSync's notation, with the second
   column marking the side that changed. It contacts the blog only for changed
   or new posts. A new file whose slug belongs to a post is a conflict, and a
-  shared title is noted. Private posts are listed with `-a`, and a published
-  post made private shows as `unpublish`. `ls` lists local posts by ID, title,
+  shared title is noted. A new or changed private post is listed as `x l`,
+  which push skips, and a published post made private shows as `unpublish`. `ls` lists local posts by ID, title,
   file, and number of issues, fitting the terminal; `ls -l` puts each post's
   file and address on the blog on their own lines. `show ID|SLUG` gives one post's details and lists its
   issues, finding the post by ID, slug, file, or title.

@@ -105,8 +105,9 @@ def test_diff_shows_local_changes_and_fetches_only_those_posts(tmp_path, store):
         "~ l  1  content/content.md  content",
         "- l  5  content/deleted.md",
         "~ l  2  content/details.md  details",
+        "x l  -  content/note.md  private; push skips it",
         "~ l  7  content/unpublish.md  unpublish; becomes a draft on WordPress",
-        "Not shown: 1 unchanged, 1 private (-a to show)",
+        "Not shown: 1 unchanged (-a to show)",
     ]
     fetched = [r.url.params.get("include") for r in wordpress.requests]
     assert fetched == ["1,2,3,4,7"]

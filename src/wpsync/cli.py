@@ -106,7 +106,7 @@ LEGEND = (
     ("- l", "deleted locally; push -p deletes it from WordPress"),
     ("?  ", "conflict or ambiguous match; push stops and asks"),
     ("=  ", "unchanged (shown with -a)"),
-    ("x l", "private; push never sends it (shown with -a)"),
+    ("x l", "private; push skips it"),
 )
 LS_LEGEND = (
     ("*", "Public: push publishes it (blank means private)"),
@@ -891,7 +891,7 @@ def _diff(arguments: argparse.Namespace, session: _Session) -> str:
     if not result.entries:
         return NO_POSTS
     color = _use_color(session.stdout, session.environ)
-    quiet = (Action.UNCHANGED, Action.PRIVATE)
+    quiet = (Action.UNCHANGED,)
     shown = [e for e in result.entries if arguments.all or e.action not in quiet]
     hidden = Counter(e.action for e in result.entries if e not in shown)
     width = max((len(e.post_id or "-") for e in shown), default=1)

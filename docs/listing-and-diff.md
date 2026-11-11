@@ -75,14 +75,16 @@ wpsync --legend      # explain the diff and ls symbols
 ~ l  123  content/hello-world.md  content; block post becomes plain HTML on push
 ~ l  145  content/release-notes.md  details
 ?    150  content/about.md  content; also changed on WordPress since the last sync
-- l  160  content/old.md  deleted locally; WordPress keeps the post
+- l  160  content/old.md
 + l    -  content/new-idea.md  new post
+x l    -  content/draft.md  private; push skips it
 ~ l  170  content/old-news.md  unpublish; becomes a draft on WordPress
-Not shown: 12 unchanged, 3 private (-a to show)
+Not shown: 12 unchanged (-a to show)
 ```
 
 `content` means the body changed and `details` means a header field changed.
-Private posts (`x l`) are listed with `-a`; their edits stay local.
+A private post that is new or changed shows as `x l`: push skips it, so its
+edits stay local until you set `status: public`.
 `diff` never changes anything. It contacts the blog only for posts that changed
 locally, to check whether they also changed on WordPress since the last sync,
 and for new files, to check their slugs and titles against existing posts. A

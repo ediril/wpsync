@@ -233,7 +233,9 @@ def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
             present.add(post_id)
         record = selection.records.get(post_id) if post_id else None
         if private and record is None:
-            entries.append(DiffEntry(Action.PRIVATE, "l", post_id, path, "private"))
+            entries.append(
+                DiffEntry(Action.PRIVATE, "l", post_id, path, "private; push skips it")
+            )
             continue
         if post_id is None:
             new.append(document)
@@ -285,7 +287,13 @@ def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
             # Push sends nothing for a private post except unpublishing it.
             if state is None or not state.published:
                 entries.append(
-                    DiffEntry(Action.PRIVATE, "l", post_id, path, f"{detail}; private")
+                    DiffEntry(
+                        Action.PRIVATE,
+                        "l",
+                        post_id,
+                        path,
+                        f"{detail}; private, push skips it",
+                    )
                 )
                 continue
             detail = "unpublish; becomes a draft on WordPress"

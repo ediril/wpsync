@@ -6,6 +6,7 @@ import posixpath
 import re
 import shutil
 import sys
+import time
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
@@ -133,6 +134,7 @@ class _Session:
         store: ConfigurationStore,
         stdin: TextIO,
         stdout: TextIO,
+        progress: TextIO,
         environ: Mapping[str, str],
         transport: httpx.BaseTransport | None,
         launch: Callable[[list[str]], None],
@@ -140,6 +142,8 @@ class _Session:
         self.store = store
         self.stdin = stdin
         self.stdout = stdout
+        self.progress = progress
+        """Where status lines, file lines, and the progress bar go: stderr."""
         self.environ = environ
         self.transport = transport
         self.launch = launch
@@ -164,6 +168,9 @@ class _Session:
             if normalized == "":
                 return default
             print("Please answer yes or no.", file=self.stdout)
+
+    def status(self, text: str) -> None:
+        print(text, file=self.progress, flush=True)
 
     def password(self, profile: Profile) -> str:
         password = self.environ.get(profile.password_env)
@@ -708,6 +715,7 @@ class _LazyRemote:
 
     def connect(self) -> WordPressClient:
         if self.client is None:
+            self.session.status(f"Connecting to {self.profile.site}...")
             self.client = WordPressClient(
                 self.profile.api_root,
                 self.profile.username,
@@ -725,6 +733,10 @@ class _LazyRemote:
     def close(self) -> None:
         if self.client is not None:
             self.client.http.close()
+
+
+def _profile_name(arguments: argparse.Namespace, session: _Session) -> str:
+    return _resolve_profile(arguments, session.store.load())[0]
 
 
 def _profile_root(
@@ -905,6 +917,10 @@ def _diff(arguments: argparse.Namespace, session: _Session) -> str:
         root=root,
         base=base,
     )
+    session.status(
+        f"Checking differences for profile '{_profile_name(arguments, session)}'..."
+    )
+    session.status("Comparing local and remote posts...")
     remote = _LazyRemote(profile, session)
     try:
         result = compare(
@@ -1172,21 +1188,82 @@ def _confirmer(session: _Session, yes: bool) -> Callable[[str], bool]:
     return confirm
 
 
-def _reporter(session: _Session) -> Callable[[Outcome], None]:
-    color = _use_color(session.stdout, session.environ)
+class _Progress:
+    """Push and pull's file lines, with HLSync's progress bar on a terminal."""
 
-    def report(outcome: Outcome) -> None:
+    def __init__(self, session: _Session) -> None:
+        self.output = session.progress
+        self.color = _use_color(self.output, session.environ)
+        isatty = getattr(self.output, "isatty", lambda: False)
+        self.terminal = isatty() and session.environ.get("TERM") != "dumb"
+        self.total = 0
+        self.done = 0
+        self.failed = 0
+        self.unit = ""
+        self.visible = False
+        self.last_draw = 0.0
+
+    def start(self, total: int, unit: str) -> None:
+        self.total, self.unit = total, unit
+        self.draw(force=True)
+
+    def step(self) -> None:
+        self.done += 1
+        self.draw()
+
+    def report(self, outcome: Outcome, *, step: bool = False) -> None:
+        self.clear()
         if outcome.failure:
+            self.failed += 1
             line = f"failed  {display_path(outcome.path)}: {outcome.failure}"
-            line = f"{MARKER_COLORS['-']}{line}{RESET}" if color else line
+            line = f"{MARKER_COLORS['-']}{line}{RESET}" if self.color else line
         else:
             marker = outcome.action.value
-            style = MARKER_COLORS.get(marker) if color else None
+            style = MARKER_COLORS.get(marker) if self.color else None
             line = f"{marker} {display_path(outcome.path)}"
             line = f"{style}{line}{RESET}" if style else line
-        print(f"  {line}", file=session.stdout, flush=True)
+        print(f"  {line}", file=self.output, flush=True)
+        self.done += step
+        self.draw(force=True)
 
-    return report
+    def clear(self) -> None:
+        if self.visible:
+            print("\r\033[2K", end="", file=self.output, flush=True)
+            self.visible = False
+
+    def draw(self, *, force: bool = False) -> None:
+        if not self.terminal or not self.total:
+            return
+        now = time.monotonic()
+        if not force and now - self.last_draw < 0.1:
+            return
+        self.last_draw = now
+        filled = min(16, self.done * 16 // self.total)
+        bar = "#" * filled + "-" * (16 - filled)
+        line = f"  [{bar}] {self.done}/{self.total} {self.unit}"
+        if self.failed:
+            line += f" · {self.failed} failed"
+        width = max(1, shutil.get_terminal_size().columns - 1)
+        print(f"\r\033[2K{line[:width]}", end="", file=self.output, flush=True)
+        self.visible = True
+
+    def finish(self) -> None:
+        """Leave the final bar on screen, on its own line."""
+        if self.visible:
+            self.draw(force=True)
+            print(file=self.output, flush=True)
+            self.visible = False
+
+    def asking(self, confirm: Callable[[str], bool]) -> Callable[[str], bool]:
+        """A question, with the bar out of its way."""
+
+        def ask(question: str) -> bool:
+            self.clear()
+            answer = confirm(question)
+            self.draw(force=True)
+            return answer
+
+        return ask
 
 
 def _pull(arguments: argparse.Namespace, session: _Session) -> str:
@@ -1197,15 +1274,28 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> str:
     ids, slug = _pull_target(arguments.post, documents, root, base)
     records = _follow_files(profile, documents)
 
+    session.status(
+        f"Preparing pull for profile '{_profile_name(arguments, session)}'..."
+    )
+    session.status(f"Connecting to {profile.site}...")
     client = WordPressClient(
         profile.api_root, profile.username, session.password(profile), session.transport
     )
     remote = WordPressRemote(client, session.transport)
+    progress = _Progress(session)
+
+    def started(total: int) -> None:
+        session.status("Comparing local and remote posts...")
+        if total:
+            session.status("Pulling changes...")
+        progress.start(total, "posts")
+
     try:
         account = _sign_in(client, profile)
         # Until something is pulled, say who signed in and what limits the account.
         if not records:
-            print("\n".join(account), file=session.stdout, flush=True)
+            session.status("\n".join(account))
+        session.status("Reading posts from WordPress...")
         puller = Puller(
             root,
             profile.api_root,
@@ -1213,11 +1303,14 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> str:
             documents,
             records,
             read_media(root, profile.api_root),
-            _confirmer(session, yes),
-            _reporter(session),
+            progress.asking(_confirmer(session, yes)),
+            progress.report,
+            started,
+            progress.step,
         )
         result = puller.pull(ids=ids, slug=slug)
     finally:
+        progress.finish()
         remote.close()
         client.http.close()
     summary = result.summary()
@@ -1255,26 +1348,42 @@ def _push(arguments: argparse.Namespace, session: _Session) -> str:
         account = _sign_in(client, profile)
         # Until something is synced, say who signed in and what limits the account.
         if not records:
-            print("\n".join(account), file=session.stdout, flush=True)
+            session.status("\n".join(account))
         opened.append(WordPressRemote(client, session.transport))
         return opened[0]
 
+    session.status(
+        f"Preparing push for profile '{_profile_name(arguments, session)}'..."
+    )
+    session.status("Comparing local and remote posts...")
     media = read_media(root, profile.api_root)
+    progress = _Progress(session)
     try:
         plan = compare(selection, lazy, root=root, media=media, prune=arguments.prune)
         for note in plan.notes:
-            print(f"Note: {note}", file=session.stdout, flush=True)
+            session.status(f"Note: {note}")
+        sending = [entry for entry in plan.entries if entry.step is not None]
+        images = {image.path for entry in sending for image in entry.images}
+        if sending:
+            posts = f"{len(sending)} post{'s' * (len(sending) != 1)}"
+            uploads = (
+                f" · {len(images)} image{'s' * (len(images) != 1)}" if images else ""
+            )
+            session.status(f"Sending: {posts}{uploads}.")
+            session.status("Pushing changes...")
+            progress.start(len(sending) + len(images), "sent")
         pusher = Pusher(
             root,
             profile.api_root,
             connect,
             records,
             media,
-            _confirmer(session, arguments.yes),
-            _reporter(session),
+            progress.asking(_confirmer(session, arguments.yes)),
+            lambda outcome: progress.report(outcome, step=True),
         )
         result = pusher.push(plan.entries)
     finally:
+        progress.finish()
         for remote in opened:
             remote.close()
         lazy.close()
@@ -1325,7 +1434,7 @@ def run(
     arguments = parser.parse_args(raw_arguments)
     arguments.profile_prefix = profile_prefix
     session = _Session(
-        store or ConfigurationStore(), stdin, stdout, environ, transport, launch
+        store or ConfigurationStore(), stdin, stdout, stderr, environ, transport, launch
     )
     if arguments.legend:
         if arguments.command is not None:

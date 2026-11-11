@@ -1,4 +1,4 @@
-from wordpress_fake import FakeWordPress, add_profile, invoke
+from wordpress_fake import FakeWordPress, add_profile, invoke, screen
 
 UPLOADS = "https://blog.test/wp-content/uploads/2026/01"
 
@@ -53,8 +53,8 @@ def test_delete_keeps_the_post_and_its_own_images_in_trash_until_restored(
     assert not (tmp_path / ".trash/content/post-1.md").exists()
     assert (tmp_path / "content/images/2026/01/sunset-1024x768.jpg").exists()
 
-    _, output, _ = run(store, wordpress, "push")
-    assert output.splitlines()[-3:] == [
+    _, output, errors = run(store, wordpress, "push")
+    assert screen(output, errors) == [
         "  + images/2026/01/sunset-1024x768.jpg",
         "  + post-1.md",
         "Push complete: 2 changes.",
@@ -81,8 +81,8 @@ def test_push_prune_deletes_posts_whose_files_were_deleted_keeping_a_copy(
         "?  r post-2.md",
     ]
 
-    _, output, _ = run(store, wordpress, "push", "-p")
-    assert output.splitlines() == [
+    _, output, errors = run(store, wordpress, "push", "-p")
+    assert screen(output, errors) == [
         "  - post-1.md",
         "  ? post-2.md",
         "Push complete: 1 change; 1 skipped. "

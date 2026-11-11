@@ -108,15 +108,15 @@ def test_first_pull_signs_in_through_a_rest_route_api_root(tmp_path, store):
 
     status, output, errors = invoke(["myblog", "pull"], store, wordpress=wordpress)
 
-    assert (status, errors) == (0, "")
+    assert status == 0
     assert store.load().profiles["myblog"].api_root == f"{SITE}/?rest_route=/"
-    lines = output.splitlines()
-    assert lines[:2] == [
+    lines = errors.splitlines()
+    assert lines[2:4] == [
         f"Signed in to {SITE} as 'emrah' (administrator).",
         "Note: this account can edit only its own posts, so posts by other "
         "authors are not pulled.",
     ]
-    assert lines[-1] == "Pull complete: 120 changes."
+    assert output == "Pull complete: 120 changes.\n"
 
 
 @pytest.mark.parametrize(

@@ -252,3 +252,9 @@ def add_profile(store, name, root):
         ),
     )
     store.save(configuration)
+
+
+def screen(output, errors):
+    """What push or pull shows after its status lines: files, then the summary."""
+    files = [line for line in errors.splitlines() if line.startswith("  ")]
+    return files + output.splitlines()

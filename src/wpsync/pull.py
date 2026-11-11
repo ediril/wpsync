@@ -92,6 +92,8 @@ class Puller:
         media: list[MediaRecord],
         confirm: Callable[[str], bool],
         report: Callable[[Outcome], None],
+        started: Callable[[int], None],
+        advanced: Callable[[], None],
     ) -> None:
         self.root = root
         self.api_root = api_root
@@ -99,6 +101,8 @@ class Puller:
         self.records = records
         self.confirm = confirm
         self.report = report
+        self.started = started
+        self.advanced = advanced
         self.library = MediaLibrary(root, media)
         self.documents = {
             d.document.post_id: d for d in documents if d.document.post_id
@@ -116,8 +120,10 @@ class Puller:
         if not fetched and (ids or slug):
             named = f"slug '{slug}'" if slug else f"id {ids[0]}"  # type: ignore[index]
             raise SelectionError(f"WordPress has no post with {named}")
+        self.started(len(fetched))
         for post in fetched:
             self._pull_post(post)
+            self.advanced()
         if ids is None and slug is None:
             present = {post.id for post in fetched}
             for post_id, record in sorted(

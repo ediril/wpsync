@@ -1,5 +1,5 @@
 import pytest
-from wordpress_fake import FakeWordPress, Terminal, add_profile, invoke
+from wordpress_fake import FakeWordPress, Terminal, add_profile, invoke, screen
 
 from wpsync.documents import Document, Post, write_document
 
@@ -34,9 +34,9 @@ def test_first_pull_writes_posts_and_images_that_diff_then_sees_as_synced(
 
     status, output, errors = pull(store, wordpress)
 
-    assert (status, errors) == (0, "")
-    assert output.splitlines() == [
-        "Signed in to https://blog.test as 'emrah' (administrator).",
+    assert status == 0
+    assert "Signed in to https://blog.test as 'emrah' (administrator)." in errors
+    assert screen(output, errors) == [
         "  + images/2026/01/sunset-1024x768.jpg",
         "  + post-1.md",
         "  + post-2.md",
@@ -97,10 +97,10 @@ def test_later_pulls_update_unedited_files_and_ask_before_replacing_edits(
     wordpress.post(1)["title"]["raw"] = "Renamed on WordPress"
     wordpress.post(2)["title"]["raw"] = "Also renamed"
 
-    status, output, _ = pull(store, wordpress)
+    status, output, errors = pull(store, wordpress)
 
     assert status == 0
-    assert output.splitlines() == [
+    assert screen(output, errors) == [
         "  ~ post-1.md",
         "  ? post-2.md",
         "Pull complete: 1 change; 1 skipped. "
@@ -110,9 +110,9 @@ def test_later_pulls_update_unedited_files_and_ask_before_replacing_edits(
     assert "layout: post" in first.read_text()
     assert "My edit" in second.read_text()
 
-    status, output, _ = pull(store, wordpress, "2", "--yes")
+    status, output, errors = pull(store, wordpress, "2", "--yes")
 
-    assert output.splitlines() == [
+    assert screen(output, errors) == [
         "  ~ post-2.md",
         "Pull complete: 1 change.",
     ]
@@ -125,15 +125,15 @@ def test_only_a_shared_slug_links_an_unlinked_file_to_a_remote_post(tmp_path, st
     write_document(tmp_path / "content/draft.md", Document(None, Post(slug="post-2")))
     write_document(tmp_path / "content/idea.md", Document(None, Post(title="Post 1")))
 
-    status, output, _ = pull(store, wordpress)
+    status, output, errors = pull(store, wordpress)
 
-    assert "\n  ? draft.md\n" in output
+    assert "  ? draft.md" in errors.splitlines()
     names = sorted(p.name for p in (tmp_path / "content").glob("*.md"))
     assert names == ["draft.md", "idea.md", "post-1.md"]
 
-    status, output, _ = pull(store, wordpress, "2", stdin=Terminal("y\n"))
+    status, output, errors = pull(store, wordpress, "2", stdin=Terminal("y\n"))
 
-    assert output.splitlines()[-2].endswith("  + draft.md")
+    assert "  + draft.md" in errors.splitlines()
     assert (tmp_path / "content/draft.md").read_text().startswith("---\nid: 2\n")
 
 
@@ -157,9 +157,9 @@ def test_a_file_that_pull_would_only_fill_in_is_linked_without_asking(tmp_path, 
     path = tmp_path / "content/draft.md"
     write_document(path, Document(None, Post("Post 2", "post-2", body="Body 2")))
 
-    status, output, _ = pull(store, wordpress, "2")
+    status, output, errors = pull(store, wordpress, "2")
 
-    assert output.splitlines()[1:] == [
+    assert screen(output, errors) == [
         "  + draft.md",
         "Pull complete: 1 change.",
     ]
@@ -178,9 +178,9 @@ def test_linking_an_identical_file_still_downloads_the_images_it_shows(tmp_path,
     image.unlink()
     post = (tmp_path / "content/post-1.md").read_text()
 
-    status, output, _ = pull(store, wordpress, "1")
+    status, output, errors = pull(store, wordpress, "1")
 
-    assert output.splitlines()[1:] == [
+    assert screen(output, errors) == [
         "  + images/2026/01/sunset-1024x768.jpg",
         "Pull complete: 1 change.",
     ]
@@ -197,9 +197,9 @@ def test_a_rebuilt_state_adopts_images_already_at_their_upload_paths(tmp_path, s
     (tmp_path / ".wpsync/state.db").unlink()
     wordpress.requests.clear()
 
-    status, output, _ = pull(store, wordpress, "1")
+    status, output, errors = pull(store, wordpress, "1")
 
-    assert output.splitlines()[1:] == ["  Nothing to pull."]
+    assert screen(output, errors) == ["  Nothing to pull."]
     assert [r for r in wordpress.requests if "/wp-content/" in r.url.path] == []
     images = tmp_path / "content/images/2026/01"
     assert [p.name for p in images.iterdir()] == ["sunset-1024x768.jpg"]
@@ -250,8 +250,8 @@ def test_a_missing_image_is_reported_and_the_post_still_converts(
 
     status, output, errors = pull(store, wordpress)
 
-    assert (status, errors) == (0, "")
-    assert output.splitlines()[1:] == [
+    assert status == 0
+    assert screen(output, errors) == [
         "  + images/2026/01/sunset-1024x768.jpg",
         "  + post-1.md",
         "  + post-2.md",
@@ -294,9 +294,9 @@ def test_a_missing_image_stays_counted_until_a_pull_restores_it_under_your_edits
     post.write_text(post.read_text() + "\nMy edit.\n")
     edited = post.read_text()
     del wordpress.broken_uploads[path]
-    _, output, _ = pull(store, wordpress)
+    _, output, errors = pull(store, wordpress)
 
-    assert output.splitlines() == [
+    assert screen(output, errors) == [
         "  + images/2026/01/gone-1024x768.jpg",
         "Pull complete: 1 change.",
     ]

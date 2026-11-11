@@ -31,10 +31,16 @@ Pull prints each file it writes, as HLSync does: `+` for a new post or image,
 `~` for an updated post, and `?` for a post it skipped after a question.
 
 ```text
+Preparing pull for profile 'myblog'...
+Connecting to https://example.com...
+Reading posts from WordPress...
+Comparing local and remote posts...
+Pulling changes...
   + images/2025/11/photo.jpg
   + hello-world.md
   ~ release-notes.md
   ? about.md
+  [################] 37/37 posts
 Pull complete: 3 changes; 1 skipped. Rerun with --yes to accept the skipped changes.
 Deleted on WordPress, local files kept:
   old.md
@@ -75,15 +81,23 @@ wpsync push -y       # answer yes to every question
 ```
 
 ```text
+Preparing push for profile 'myblog'...
+Comparing local and remote posts...
+Connecting to https://example.com...
+Sending: 4 posts · 1 image.
+Pushing changes...
   + images/photo.png
   + hello-world.md
   ~ release-notes.md
   ? about.md
   failed  draft.md: image not found: images/missing.png
+  [##############--] 4/5 sent · 1 failed
 Push complete: 3 changes; 2 skipped. Rerun with --yes to accept the skipped changes.
 Note: hello-world.md: WordPress set the slug to hello-world-2
 ```
 
+As in HLSync, the status lines, file lines, and progress bar go to standard
+error and the summary to standard output; the bar appears only on a terminal.
 Push prints each file it changes on the blog, as HLSync does: `+` for a new
 post or uploaded image, `~` for an updated post, `-` for a deleted one, and `?`
 for a post it skipped after a question. A post it cannot send at all shows as

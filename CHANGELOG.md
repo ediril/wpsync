@@ -84,6 +84,10 @@
   outside the profile folder with `?`, since push cannot send it. A
   replaced image counts as a change to every post that shows it, so push
   uploads it again and updates those posts even if their files did not change.
+- `diff`, `push`, and `pull` say what they are doing as HLSync does, such as
+  `Preparing push for profile 'myblog'...` and `Connecting to ...`, and push
+  and pull show HLSync's progress bar on a terminal. Status lines, file lines,
+  and the bar go to standard error; results go to standard output.
 - `push` and `pull` print each file they change as HLSync does, `  + path`,
   `  ~ path`, or `  - path`, uploaded and downloaded images included, with
   `?` for a skipped post and `failed` with the reason for one that cannot be

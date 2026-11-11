@@ -68,7 +68,7 @@ def test_diff_without_local_changes_never_contacts_the_blog(tmp_path, store):
         ["myblog", "diff"], store, wordpress=wordpress, password=None
     )
 
-    assert (status, errors) == (0, "")
+    assert status == 0
     assert output == "No local changes.\n"
     assert wordpress.requests == []
 

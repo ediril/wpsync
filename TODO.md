@@ -1,8 +1,10 @@
 # Work Queue
 
-- [ ] `diff` reports Obsidian-style `![[image]]` embeds, which push would send
-  as plain text. Decide first whether WPSync should resolve them, and
-  Obsidian's shortest-path image links, as Obsidian does.
+- [ ] Obsidian's image links with its default settings: `![[image]]` embeds and
+  "shortest path" links such as `![](photo.png)`, which name only the file.
+  Resolve them as Obsidian does, by file name anywhere in the profile folder,
+  so push uploads the image; a name that matches no file, or several, is `?`.
+  Such posts preview their images in Obsidian only, not in other editors.
 - [ ] `docs/limitations.md`, linked from the README: what WPSync does not do.
   Pages and other post types are not synced, nor featured images or comments
   (lost on `delete`); WordPress-side edits show only through `pull` or a

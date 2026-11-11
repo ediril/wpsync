@@ -420,11 +420,11 @@ def _new_entry(document: LocalDocument, summaries: Sequence[PostSummary]) -> Dif
         )
         step = PushStep(document, target=match.post.id, question=question)
         return DiffEntry(Action.CONFLICT, "l", None, path, detail, step)
-    detail = "new post"
+    detail = ""
     question = None
     if match.same_title:
         listed = ", ".join(f"#{p.id}" for p in match.same_title)
-        detail += f"; same title as {listed}"
+        detail = f"same title as {listed}"
         question = f"{path} has the same title as {listed}. Create another post?"
     step = PushStep(document, question=question)
     return DiffEntry(Action.NEW, "l", None, path, detail, step)

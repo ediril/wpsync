@@ -76,7 +76,7 @@ wpsync --legend      # explain the diff and ls symbols
 ~ l  145  content/release-notes.md  details
 ?    150  content/about.md  content; also changed on WordPress since the last sync
 - l  160  content/old.md
-+ l    -  content/new-idea.md  new post
++ l    -  content/new-idea.md
 x l    -  content/draft.md  (private)
 ~ l  170  content/old-news.md  unpublish; becomes a draft on WordPress
 Not shown: 12 unchanged (-a to show)

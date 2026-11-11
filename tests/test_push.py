@@ -169,7 +169,7 @@ def test_a_shared_title_needs_a_yes_before_creating_a_duplicate(tmp_path, store)
     write_post(tmp_path, "mine.md", "title: Post 1\nslug: other\nstatus: public\n")
 
     _, output, _ = run(store, wordpress, "push")
-    assert "?  -  content/mine.md  new post; same title as #1" in output
+    assert "?  -  content/mine.md  same title as #1" in output
     assert wordpress.saved == []
 
     _, output, _ = run(store, wordpress, "push", "--yes")

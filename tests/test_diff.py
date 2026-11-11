@@ -127,9 +127,9 @@ def test_diff_matches_new_files_by_slug_and_notes_shared_titles(tmp_path, store)
     assert status == 0
     assert output.splitlines() == [
         "? l  -  content/a.md  same slug as #1 'Post 1'",
-        "+ l  -  content/b.md  new post; same title as #3",
-        "+ l  -  content/c.md  new post; same title as #2, #9",
-        "+ l  -  content/d.md  new post",
+        "+ l  -  content/b.md  same title as #3",
+        "+ l  -  content/c.md  same title as #2, #9",
+        "+ l  -  content/d.md",
     ]
 
 

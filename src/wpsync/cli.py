@@ -8,7 +8,7 @@ import sys
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
-from datetime import UTC, datetime, timedelta
+from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import TextIO
 
@@ -89,9 +89,6 @@ PROFILE_AWARE_COMMANDS = frozenset(
     }
 )
 TIMESTAMP_FORMAT = "%Y-%m-%d-%H%M"
-TIMESTAMP_NAME = re.compile(r"(\d{4}-\d{2}-\d{2}-\d{4})(?:-(\d+))?\.md")
-JUST_CREATED = timedelta(minutes=10)
-"""How long after create a plain wpsync open still opens the new post."""
 NO_POSTS = "No posts here yet. Run wpsync pull, or add Markdown files under content/."
 RESET = "\033[0m"
 MARKER_COLORS = {
@@ -383,7 +380,7 @@ def build_parser() -> argparse.ArgumentParser:
         "post",
         nargs="?",
         metavar="ID|SLUG",
-        help="the post; the one wpsync create just made when omitted",
+        help="the post; the one edited last when omitted",
     )
 
     diff = subparsers.add_parser(
@@ -742,25 +739,6 @@ def _create(arguments: argparse.Namespace, session: _Session) -> str:
     return created
 
 
-def _just_created(root: Path, now: datetime) -> PurePosixPath | None:
-    """The newest post create named after the time, if made just now.
-
-    The time in the file name is when create made it, so nothing is recorded;
-    pulled posts and files renamed to a real name never match.
-    """
-    found = []
-    for path in (root / CONTENT_DIR).glob("*.md"):
-        match = TIMESTAMP_NAME.fullmatch(path.name)
-        if match is None:
-            continue
-        made = datetime.strptime(match[1], TIMESTAMP_FORMAT)
-        if timedelta(0) <= now - made <= JUST_CREATED:
-            found.append((made, int(match[2] or 1), path.name))
-    if not found:
-        return None
-    return PurePosixPath(CONTENT_DIR, max(found)[2])
-
-
 def _timestamp_file(root: Path, now: datetime) -> PurePosixPath:
     """A free file name under the posts folder from the current time."""
     stem = now.strftime(TIMESTAMP_FORMAT)
@@ -966,15 +944,15 @@ def _open(arguments: argparse.Namespace, session: _Session) -> str:
     if arguments.post is not None:
         profile, item, _ = _one_post(arguments, session)
         return _open_file(session, profile.local_root, PurePosixPath(item.path))
+    # Without a name, the post edited last: the one just created when -o was
+    # forgotten, or the one being worked on.
     profile, _ = _profile_root(arguments, session)
-    recent = _just_created(profile.local_root, datetime.now())
-    if recent is None:
-        minutes = int(JUST_CREATED.total_seconds() // 60)
-        raise SelectionError(
-            f"no post created in the last {minutes} minutes; "
-            "name one: wpsync open ID|SLUG"
-        )
-    return _open_file(session, profile.local_root, recent)
+    root = profile.local_root
+    documents = scan_documents(root)
+    if not documents:
+        raise SelectionError(NO_POSTS)
+    latest = max(documents, key=lambda item: (root / item.path).stat().st_mtime)
+    return _open_file(session, root, PurePosixPath(latest.path))
 
 
 def _open_file(session: _Session, root: Path, relative: PurePosixPath) -> str:

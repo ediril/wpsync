@@ -137,13 +137,12 @@ or file. Choose the editor with `editor`, which is saved in
 ```console
 wpsync editor vscode     # or obsidian
 wpsync open hello
-wpsync open              # the post wpsync create just made
+wpsync open              # the post edited last
 ```
 
-Without a name, `open` opens the newest post `create` named after the time,
-such as `content/2026-11-10-1432.md`, if it was made in the last 10 minutes.
-That helps when you forgot `-o`. Otherwise `open` fails and asks you to name
-the post, so it never opens one you have forgotten about.
+Without a name, `open` opens the post file under `content/` that was modified
+last: the one `create` just made when you forgot `-o`, or the one you were
+working on.
 
 VS Code opens the file with the profile folder as its workspace, using the
 `code` command; on macOS without that command, it opens the Visual Studio Code

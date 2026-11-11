@@ -1,6 +1,6 @@
+import os
 import subprocess
 import sys
-from datetime import datetime, timedelta
 from urllib.parse import quote
 
 import pytest
@@ -97,41 +97,29 @@ def test_launch_finds_the_program_on_path_or_vs_code_as_a_mac_app(monkeypatch):
     ]
 
 
-def test_open_without_a_name_opens_a_post_created_in_the_last_minutes(tmp_path, store):
+def test_open_without_a_name_opens_the_post_edited_last(tmp_path, store):
     add_profile(store, "myblog", tmp_path)
     invoke(["editor", "vscode"], store)
     launched = []
 
-    def open_newest():
+    def open_latest():
         return invoke(["myblog", "open"], store, launch=launched.append, password=None)
 
-    status, output, _ = invoke(
-        ["myblog", "create", "named", "-o"],
-        store,
-        launch=launched.append,
-        password=None,
-    )
+    status, _, errors = open_latest()
+    assert status == 1 and "No posts here yet" in errors
+
+    created = ["myblog", "create", "first", "-o"]
+    status, output, _ = invoke(created, store, launch=launched.append, password=None)
     assert (status, output.splitlines()[-1]) == (
         0,
-        "Opened content/named.md in VS Code.",
+        "Opened content/first.md in VS Code.",
     )
-    status, _, errors = open_newest()
-    assert (status, errors) == (
-        1,
-        "wpsync: error: no post created in the last 10 minutes; "
-        "name one: wpsync open ID|SLUG\n",
-    )
+    (tmp_path / "content/drafts").mkdir()
+    invoke(["myblog", "create", "drafts/second"], store, password=None)
+    first, second = tmp_path / "content/first.md", tmp_path / "content/drafts/second.md"
+    os.utime(first, (1000, 1000))
+    os.utime(second, (2000, 2000))
+    assert open_latest()[1] == "Opened content/drafts/second.md in VS Code.\n"
 
-    invoke(["myblog", "create"], store, password=None)
-    _, output, _ = invoke(["myblog", "create"], store, password=None)
-    newest = output.split()[1]
-    assert newest.endswith("-2.md")
-    status, output, _ = open_newest()
-    assert (status, output) == (0, f"Opened {newest} in VS Code.\n")
-
-    for path in (tmp_path / "content").glob("2*.md"):
-        path.rename(path.with_name(f"renamed-{path.name[-5:]}"))
-    old = datetime.now() - timedelta(minutes=11)
-    (tmp_path / f"content/{old:%Y-%m-%d-%H%M}.md").write_text("---\ntitle: ''\n---\n")
-    status, _, _ = open_newest()
-    assert status == 1
+    os.utime(first, (3000, 3000))
+    assert open_latest()[1] == "Opened content/first.md in VS Code.\n"

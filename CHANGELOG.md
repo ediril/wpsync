@@ -74,7 +74,8 @@
 
 ### Changed
 
-- `diff` lists the images push would upload, new (`+  l`) or replaced (`~`). A
+- `diff` lists the images push would upload under the post that shows them,
+  new (`+  l`) or replaced (`~`). A
   replaced image counts as a change to every post that shows it, so push
   uploads it again and updates those posts even if their files did not change.
 - `push` and `pull` print each file they change as HLSync does, `  + path`,

@@ -325,9 +325,8 @@ def test_a_replaced_image_counts_as_a_change_to_the_post_that_shows_it(tmp_path,
     _, output, _ = run(store, wordpress, "diff")
     assert output.splitlines() == [
         "     content/",
-        "       images/",
-        "+  l     cat.png",
         "+  l   top.md",
+        "+  l     images/cat.png",
     ]
     run(store, wordpress, "push")
 
@@ -335,9 +334,8 @@ def test_a_replaced_image_counts_as_a_change_to_the_post_that_shows_it(tmp_path,
     _, output, _ = run(store, wordpress, "diff")
     assert output.splitlines() == [
         "     content/",
-        "       images/",
-        "~        cat.png",
         "~      top.md",
+        "~        images/cat.png",
     ]
     _, output, _ = run(store, wordpress, "push")
     assert output.splitlines() == [

@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import posixpath
 import re
 import shutil
 import sys
@@ -963,16 +964,27 @@ def _diff_tree(entries: list[DiffEntry], color: bool) -> list[str]:
                 folder = f"{DIRECTORY_COLOR}{folder}{RESET}"
             lines.append(f"     {'  ' * depth}{folder}")
         opened = tuple(folders)
-        lines.append(_status_line(entry, name, len(folders), color))
+        lines.append(
+            _status_line(entry.action, entry.presence, name, len(folders), color)
+        )
+        # An image goes under the post that shows it, as the post refers to it.
+        for image in entry.images:
+            source = posixpath.relpath(image.path, entry.path.parent)
+            presence = "l" if image.action is Action.NEW else ""
+            lines.append(
+                _status_line(image.action, presence, source, len(folders) + 1, color)
+            )
     return lines
 
 
-def _status_line(entry: DiffEntry, name: str, depth: int, color: bool) -> str:
+def _status_line(
+    entry_action: Action, entry_presence: str, name: str, depth: int, color: bool
+) -> str:
     """Action, exclusion, and presence slots, as HLSync shows them."""
-    private = entry.action is Action.PRIVATE
-    action = " " if private else entry.action.value
+    private = entry_action is Action.PRIVATE
+    action = " " if private else entry_action.value
     exclusion = "x" if private else " "
-    presence = entry.presence or " "
+    presence = entry_presence or " "
     status = f"{action}{exclusion} {presence}"
     if not color:
         return f"{status} {'  ' * depth}{name}"

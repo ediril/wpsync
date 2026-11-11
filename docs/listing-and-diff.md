@@ -91,8 +91,9 @@ indented beneath them. The status has three slots:
 - where the post exists: `l` only as a local file, `r` only on WordPress, blank
   on both sides.
 
-Diff also lists the images push would upload: `+  l` for an image not on the
-blog yet, and `~` for one whose file you replaced since it was uploaded. A
+Under each post, indented, diff lists the images push would upload with it, as
+the post refers to them: `+  l` for an image not on the blog yet, and `~` for
+one whose file you replaced since it was uploaded. A
 replaced image changes every post that shows it, even if the post's file did
 not change, so those posts show as `~` too, and push uploads the new image and
 points them at it.

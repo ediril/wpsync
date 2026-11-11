@@ -179,6 +179,15 @@ class DeleteStep:
 
 
 @dataclass(frozen=True)
+class ImageUpload:
+    """An image a post shows that push uploads: new, or replaced since upload."""
+
+    action: Action
+    path: PurePosixPath
+    """Relative to the profile folder."""
+
+
+@dataclass(frozen=True)
 class DiffEntry:
     action: Action
     presence: str
@@ -189,6 +198,8 @@ class DiffEntry:
     """None when a push leaves the post alone."""
     reason: str = ""
     """Why push cannot send a conflicting post it has no question for."""
+    images: tuple[ImageUpload, ...] = ()
+    """The images the post shows that push uploads with it."""
 
 
 @dataclass(frozen=True)
@@ -363,10 +374,9 @@ def _with_images(
     root: Path,
     media: list[MediaRecord],
 ) -> list[DiffEntry]:
-    """Add the images push would upload, and mark the posts that show them."""
+    """Attach the images push would upload to the posts that show them."""
     library = {record.path: record for record in media}
     by_path = {PurePosixPath(item.path): item for item in documents}
-    uploads: dict[PurePosixPath, Action] = {}
     result = []
     for entry in entries:
         document = by_path.get(entry.path)
@@ -376,22 +386,17 @@ def _with_images(
         if document is None or not sent:
             result.append(entry)
             continue
-        changed = False
-        for image in sorted(post_images(entry.path, document.document.post.body)):
-            action = _image_upload(root / image, library.get(image))
-            if action is not None:
-                uploads[image] = action
-                changed = True
-        if changed and entry.action is Action.UNCHANGED:
+        images = tuple(
+            ImageUpload(action, image)
+            for image in sorted(post_images(entry.path, document.document.post.body))
+            if (action := _image_upload(root / image, library.get(image)))
+        )
+        if images and entry.action is Action.UNCHANGED:
             step = PushStep(document, target=entry.post_id, fields=False)
             entry = DiffEntry(Action.CHANGED, "", entry.post_id, entry.path, step)
-        elif changed and isinstance(entry.step, PushStep):
+        elif images and isinstance(entry.step, PushStep):
             entry = replace(entry, step=replace(entry.step, content=True))
-        result.append(entry)
-    result.extend(
-        DiffEntry(action, "l" if action is Action.NEW else "", None, image)
-        for image, action in uploads.items()
-    )
+        result.append(replace(entry, images=images))
     return result
 
 

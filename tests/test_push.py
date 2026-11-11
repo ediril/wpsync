@@ -60,7 +60,7 @@ def test_an_untitled_post_publishes_and_keeps_its_id_through_a_rename_and_title(
             "content": "<p>First <em>post</em>.</p>",
             "title": "",
             "status": "publish",
-            "categories": [],
+            "categories": [3],
             "tags": [],
         }
     ]
@@ -69,10 +69,10 @@ def test_an_untitled_post_publishes_and_keeps_its_id_through_a_rename_and_title(
         "id: 3\n"
         "title: ''\n"
         "slug: '3'\n"
-        "date: 2026-02-01T13:00:00+03:00\n"
+        "date: 2026-02-01 13:00\n"
         "status: public\n"
         "categories:\n"
-        "- News\n"
+        "- Uncategorized\n"
         "tags: []\n"
         "---\n"
         "\n"
@@ -411,7 +411,12 @@ def test_missing_terms_are_created_only_after_a_yes(tmp_path, store):
 
     run(store, wordpress, "push", "-y")
 
-    assert sorted(wordpress.categories.values()) == ["Fresh", "News", "Travel"]
+    assert sorted(wordpress.categories.values()) == [
+        "Fresh",
+        "News",
+        "Travel",
+        "Uncategorized",
+    ]
     assert "- Fresh\n- News\n" in path.read_text()
     assert "- new-tag\n" in path.read_text()
 

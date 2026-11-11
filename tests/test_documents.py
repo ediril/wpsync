@@ -30,6 +30,13 @@ def test_synced_fields_survive_a_round_trip_with_yaml_lookalike_values():
     assert parse_document(serialize_document(document)) == document
 
 
+def test_a_date_without_a_time_zone_is_local_and_keeps_its_short_form():
+    for text in ("2026-11-10", "2026-11-10 09:30"):
+        document = parse_document(f"---\ndate: {text}\n---\n")
+        assert document.post.date == datetime.fromisoformat(text).astimezone()
+        assert f"date: {text}\n" in serialize_document(document)
+
+
 def test_unsynced_frontmatter_is_kept_verbatim_while_synced_fields_are_rewritten():
     original = (
         "---\n"
@@ -74,7 +81,7 @@ def test_unsynced_frontmatter_is_kept_verbatim_while_synced_fields_are_rewritten
     ("text", "message"),
     [
         ("# Just Markdown\n", "start the file with a header such as"),
-        ("---\ndate: 2026-10-01 09:30\n---\n", "needs a time zone"),
+        ("---\ndate: next tuesday\n---\n", "is not a date"),
         ("---\ntags: python\n---\n", "'tags' must be a list"),
         ("---\nstatus: publish\n---\n", "must be one of: public, private"),
     ],

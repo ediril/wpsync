@@ -14,7 +14,7 @@ with a dot. The file starts with a YAML header:
 id: 123
 title: Hello world
 slug: hello-world
-date: 2026-10-01T09:30:00+02:00
+date: 2026-10-01 09:30
 status: public
 categories:
 - News
@@ -26,15 +26,21 @@ The post body in Markdown.
 ```
 
 - `id` links the file to a WordPress post. Leave it out for a new post.
-- `title`, `slug`, and `date` are optional. A `date` needs a time zone offset
-  or `Z`.
+- `title`, `slug`, and `date` are optional. A `date` is a day, such as
+  `2026-10-01`, or a day and time, such as `2026-10-01 09:30`, in your
+  computer's time zone; a missing time means midnight. Add an offset, such as
+  `2026-10-01 09:30+02:00`, or `Z` for UTC, to give another zone. WPSync writes
+  dates back in your local time, in the shortest form that keeps them exact, so
+  a post's date reads differently on a computer in another time zone.
 - `status` is `public` or `private`, and defaults to `private`. Push publishes
   a public post; a public post with a future `date` is scheduled. Push never
   sends a private post, except to turn a published post that became private
   into a WordPress draft, which keeps its ID, comments, and address for when it
   is made public again. Pull writes published posts as `public` and drafts,
   scheduled, pending, and WordPress-private posts as `private`.
-- `categories` and `tags` are lists of names.
+- `categories` and `tags` are lists of names. An empty `categories` list means
+  Uncategorized, since WordPress keeps every post in at least one category;
+  push puts the post there and writes `Uncategorized` back into the file.
 
 The body is Markdown. Styling that plain Markdown cannot express uses
 Pandoc-style attributes, and only where a post has such styling:

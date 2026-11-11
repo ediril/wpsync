@@ -36,6 +36,7 @@ from wpsync.wordpress.client import (
 from wpsync.wordpress.content import render_html, same_display, to_markdown
 
 PULL_FIELDS = FINGERPRINT_FIELDS + ",generated_slug,link"
+UNCATEGORIZED = "Uncategorized"
 
 
 class WordPressRemote:
@@ -116,7 +117,7 @@ class WordPressRemote:
         return [
             f"{label} '{name}'"
             for taxonomy, label, names in (
-                ("categories", "category", post.categories),
+                ("categories", "category", _categories(post)),
                 ("tags", "tag", post.tags),
             )
             for name in names
@@ -137,7 +138,7 @@ class WordPressRemote:
         if fields:
             body["title"] = post.title
             body["status"] = "publish" if post.status is PostStatus.PUBLIC else "draft"
-            body["categories"] = self._term_ids("categories", post.categories)
+            body["categories"] = self._term_ids("categories", _categories(post))
             body["tags"] = self._term_ids("tags", post.tags)
             if post.slug:
                 body["slug"] = post.slug
@@ -243,6 +244,11 @@ class WordPressRemote:
         if taxonomy not in self._terms:
             self._terms[taxonomy] = self.client.term_names(taxonomy)
         return self._terms[taxonomy]
+
+
+def _categories(post: Post) -> tuple[str, ...]:
+    """A post's categories; WordPress keeps a post without any in Uncategorized."""
+    return post.categories or (UNCATEGORIZED,)
 
 
 def _upload_stem(url: str) -> str:

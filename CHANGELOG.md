@@ -74,6 +74,9 @@
 
 ### Changed
 
+- A post's `date` can be just a day, `2026-11-10`, or a day and time,
+  `2026-11-10 09:30`, in your computer's time zone. WPSync writes dates in
+  that local form, leaving off a midnight time and zero seconds.
 - `diff`, `push`, and `pull` show paths relative to `content/`, so only its
   subfolders appear as folders.
 - `diff` lists the images push would upload under the post that shows them,
@@ -98,6 +101,8 @@
 
 ### Fixed
 
+- A post with an empty `categories` list is put in Uncategorized, as in the
+  WordPress editor, instead of in no category.
 - Push shows an uploaded GIF at its original size, since the resized copies
   WordPress makes keep only the first frame of an animation.
 - Pull downloads the images a post shows when it links a local file that

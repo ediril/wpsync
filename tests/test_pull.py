@@ -47,7 +47,7 @@ def test_first_pull_writes_posts_and_images_that_diff_then_sees_as_synced(
         "id: 1\n"
         "title: Post 1\n"
         "slug: post-1\n"
-        "date: 2026-01-02T13:00:00+03:00\n"
+        "date: 2026-01-02 13:00\n"
         "status: public\n"
         "categories:\n"
         "- News\n"
@@ -164,7 +164,7 @@ def test_a_file_that_pull_would_only_fill_in_is_linked_without_asking(tmp_path, 
         "Pull complete: 1 change.",
     ]
     assert path.read_text().startswith(
-        "---\nid: 2\ntitle: Post 2\nslug: post-2\ndate: 2026-01-03T"
+        "---\nid: 2\ntitle: Post 2\nslug: post-2\ndate: 2026-01-03 13:00\n"
     )
     assert "categories:\n- News\n" in path.read_text()
 

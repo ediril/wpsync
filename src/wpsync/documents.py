@@ -84,13 +84,25 @@ def _date(value: str) -> datetime | None:
         parsed = datetime.fromisoformat(value)
     except ValueError as error:
         raise DocumentError(
-            f"date '{value}' is not an ISO date, such as 2026-10-01T09:30:00+02:00"
+            f"date '{value}' is not a date, such as 2026-10-01 or 2026-10-01 09:30"
         ) from error
-    if parsed.tzinfo is None:
-        raise DocumentError(
-            f"date '{value}' needs a time zone, such as 2026-10-01T09:30:00+02:00"
-        )
-    return parsed
+    # A date without a time zone is in this computer's; a missing time is 00:00.
+    return parsed if parsed.tzinfo is not None else parsed.astimezone()
+
+
+def format_date(date: datetime) -> str:
+    """A date in this computer's time zone, in its shortest exact form."""
+    local = date.astimezone()
+    if local.replace(tzinfo=None).astimezone() != date:
+        # A time the clocks pass twice keeps its offset to say which one.
+        return local.isoformat(sep=" ")
+    if local.microsecond:
+        return local.replace(tzinfo=None).isoformat(sep=" ")
+    if local.second:
+        return f"{local:%Y-%m-%d %H:%M:%S}"
+    if local.hour or local.minute:
+        return f"{local:%Y-%m-%d %H:%M}"
+    return f"{local:%Y-%m-%d}"
 
 
 def _status(value: str) -> PostStatus:
@@ -189,7 +201,7 @@ def serialize_document(document: Document) -> str:
     if post.slug:
         lines.append(_yaml_value("slug", post.slug))
     if post.date is not None:
-        lines.append(f"date: {post.date.isoformat()}\n")
+        lines.append(f"date: {format_date(post.date)}\n")
     lines.append(f"status: {post.status}\n")
     lines.append(_yaml_value("categories", list(post.categories)))
     lines.append(_yaml_value("tags", list(post.tags)))

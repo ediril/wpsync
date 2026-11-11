@@ -54,7 +54,7 @@ class FakeWordPress:
             for number in range(1, post_count + 1)
         ]
 
-    categories = {1: "News", 2: "Travel"}
+    categories = {1: "News", 2: "Travel", 3: "Uncategorized"}
     tags = {5: "python"}
 
     def post(self, post_id):
@@ -113,7 +113,7 @@ class FakeWordPress:
             if key in ("title", "content"):
                 post[key] = {"raw": value}
             elif key in ("categories", "tags"):
-                post[key] = value or post[key]
+                post[key] = value
             else:
                 post[key] = value
         post["content"]["raw"] = self.rewrite_content(post["content"]["raw"])

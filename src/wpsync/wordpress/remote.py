@@ -106,7 +106,9 @@ class WordPressRemote:
         }
         image = self.client.post("wp/v2/media", content=data, headers=headers).json()
         large = image.get("media_details", {}).get("sizes", {}).get("large")
-        if large:
+        # WordPress keeps only the first frame of an animated GIF in the copies
+        # it resizes, so a GIF is shown at its original size.
+        if large and media_type != "image/gif":
             return MediaImage(str(image["id"]), large["source_url"], "large")
         return MediaImage(str(image["id"]), image["source_url"], "full")
 

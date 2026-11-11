@@ -312,6 +312,24 @@ def test_a_local_image_uploads_once_and_is_sent_as_library_markup(tmp_path, stor
     assert len(wordpress.uploads) == 2
 
 
+def test_a_gif_is_shown_at_its_original_size_so_it_stays_animated(tmp_path, store):
+    wordpress = FakeWordPress(post_count=1)
+    add_profile(store, "myblog", tmp_path)
+    (tmp_path / "content/images").mkdir(parents=True)
+    (tmp_path / "content/images/demo.gif").write_bytes(b"GIF89a")
+    write_post(
+        tmp_path, "demo.md", "title: Demo\nstatus: public\n", "![](images/demo.gif)"
+    )
+
+    run(store, wordpress, "push")
+
+    url = "https://blog.test/wp-content/uploads/uploaded-901.png"
+    assert wordpress.saved[-1]["content"] == (
+        '<figure class="wp-block-image size-full">'
+        f'<img src="{url}" alt="" class="wp-image-901" /></figure>'
+    )
+
+
 def test_a_missing_image_is_not_uploaded_and_a_lost_one_stops_only_its_post(
     tmp_path, store
 ):

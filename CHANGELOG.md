@@ -91,5 +91,7 @@
 
 ### Fixed
 
+- Push shows an uploaded GIF at its original size, since the resized copies
+  WordPress makes keep only the first frame of an animation.
 - Pull downloads the images a post shows when it links a local file that
   already matches the post, instead of leaving them missing unreported.

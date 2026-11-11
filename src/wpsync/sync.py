@@ -233,9 +233,7 @@ def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
             present.add(post_id)
         record = selection.records.get(post_id) if post_id else None
         if private and record is None:
-            entries.append(
-                DiffEntry(Action.PRIVATE, "l", post_id, path, "private; push skips it")
-            )
+            entries.append(DiffEntry(Action.PRIVATE, "l", post_id, path, "(private)"))
             continue
         if post_id is None:
             new.append(document)
@@ -292,7 +290,7 @@ def compare(selection: Selection, remote: Remote, prune: bool = False) -> Diff:
                         "l",
                         post_id,
                         path,
-                        f"{detail}; private, push skips it",
+                        f"{detail} (private)",
                     )
                 )
                 continue

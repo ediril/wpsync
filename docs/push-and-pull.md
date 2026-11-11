@@ -10,7 +10,8 @@
 displays is downloaded, usually WordPress's resized `large` copy.
 
 If an image's file is gone from the server, or the server answers with something
-other than an image, pull lists it as `missing:` on the post's line and carries on. The
+other than an image, pull counts it as missing from the blog and carries on; `ls`
+and `show` list it as an issue of the post. The
 Markdown refers to the image's local path as usual, and later pulls add the file if the
 server has it again. Any other download failure, such as a server error, stops
 the pull; rerun it to continue.
@@ -26,13 +27,21 @@ wpsync pull hello    # one post, by slug, including one not pulled yet
 wpsync pull -y       # answer yes to every question
 ```
 
+Pull prints each file it writes, as HLSync does: `+` for a new post or image,
+`~` for an updated post, and `?` for a post it skipped after a question.
+
 ```text
-+  123  content/hello-world.md  2 images
-~  145  content/release-notes.md
-?  150  content/about.md  changed on both sides; your file is unchanged
-+  160  content/gallery-tour.md  kept as HTML: core/gallery
-Pulled 3 posts (2 new, 1 updated), 2 images; 1 skipped. Rerun pull with --yes to accept the skipped changes.
+  + content/images/2025/11/photo.jpg
+  + content/hello-world.md
+  ~ content/release-notes.md
+  ? content/about.md
+Pull complete: 3 changes; 1 skipped. Rerun with --yes to accept the skipped changes.
+Deleted on WordPress, local files kept:
+  content/old.md
 ```
+
+A post that cannot be pulled at all shows as `failed`, with the reason, and
+the posts deleted on one side are listed after the summary.
 
 Pull never loses local work:
 
@@ -66,11 +75,20 @@ wpsync push -y       # answer yes to every question
 ```
 
 ```text
-+  170  content/hello-world.md  1 image; https://example.com/hello-world/
-~  145  content/release-notes.md
-?  150  content/about.md  content; also changed on WordPress since the last sync
-Pushed 2 posts (1 new, 1 updated), 1 image; 1 skipped. Rerun with --yes to accept the skipped changes.
+  + content/images/photo.png
+  + content/hello-world.md
+  ~ content/release-notes.md
+  ? content/about.md
+  failed  content/draft.md: image not found: images/missing.png
+Push complete: 3 changes; 2 skipped. Rerun with --yes to accept the skipped changes.
+Note: content/hello-world.md: WordPress set the slug to hello-world-2
 ```
+
+Push prints each file it changes on the blog, as HLSync does: `+` for a new
+post or uploaded image, `~` for an updated post, `-` for a deleted one, and `?`
+for a post it skipped after a question. A post it cannot send at all shows as
+`failed`, with the reason. Notes after the summary report what WordPress did
+differently from what was sent.
 
 - A public file without an `id` creates a post. Push then writes the post's `id`,
   slug, date, categories, and tags into the file, including anything WordPress

@@ -27,12 +27,13 @@
   published post that became private into a draft. Pull writes published posts
   as public and drafts, scheduled, pending, and WordPress-private posts as
   private.
-- `diff [ID|SLUG]` shows local changes in HLSync's notation, with the second
-  column marking the side that changed. It contacts the blog only for changed
-  or new posts. A new file whose slug belongs to a post is a conflict, and a
-  shared title is noted. A new or changed private post is listed as `x l`,
-  which push skips, and a published post made private shows as `unpublish`. `ls` lists local posts by ID, title,
-  file, and number of issues, fitting the terminal; `ls -l` puts each post's
+- `diff [ID|SLUG]` shows what push would do in HLSync's layout: folders
+  before files with posts indented, and status slots for the action, `x` for a
+  private post push skips, and whether the post exists only locally (`l`), only
+  on WordPress (`r`), or on both. `-a` shows unchanged posts and `-x` private
+  ones. It contacts the blog only for changed or new posts, and a new file
+  whose slug belongs to a post is a conflict. `ls` lists local posts by ID,
+  title, file, and number of issues, fitting the terminal; `ls -l` puts each post's
   file and address on the blog on their own lines. `show ID|SLUG` gives one post's details and lists its
   issues, finding the post by ID, slug, file, or title.
 - `pull [ID|SLUG]` brings posts into `content/<slug>.md` and downloads the
@@ -73,6 +74,12 @@
 
 ### Changed
 
+- `push` and `pull` print each file they change as HLSync does, `  + path`,
+  `  ~ path`, or `  - path`, uploaded and downloaded images included, with
+  `?` for a skipped post and `failed` with the reason for one that cannot be
+  sent, and end with `Push complete: N changes.` or `Pull complete: N changes.`
+  Pull lists posts deleted on either side after the summary, and push's notes
+  report what WordPress changed from what was sent.
 - License WPSync under PolyForm Strict 1.0.0.
 - `show`, `open`, `diff`, and `push` find a post by its file name without a
   folder, such as `vibing` or `vibing.md`, in any folder under `content/`;

@@ -54,9 +54,10 @@ def test_delete_keeps_the_post_and_its_own_images_in_trash_until_restored(
     assert (tmp_path / "content/images/2026/01/sunset-1024x768.jpg").exists()
 
     _, output, _ = run(store, wordpress, "push")
-    assert output.splitlines()[-2:] == [
-        "+  3  content/post-1.md  1 image; https://blog.test/post-1/",
-        "Pushed 1 post (1 new), 1 image.",
+    assert output.splitlines()[-3:] == [
+        "  + content/images/2026/01/sunset-1024x768.jpg",
+        "  + content/post-1.md",
+        "Push complete: 2 changes.",
     ]
     assert len(wordpress.uploads) == 1
     assert "wp-image-43" in wordpress.post(3)["content"]["raw"]
@@ -71,31 +72,29 @@ def test_push_prune_deletes_posts_whose_files_were_deleted_keeping_a_copy(
     (tmp_path / "content/post-1.md").unlink()
     (tmp_path / "content/post-2.md").unlink()
     wordpress.post(2)["title"]["raw"] = "Edited on WordPress"
-    both = (
-        "content/post-2.md  deleted locally; changed on WordPress since the last sync"
-    )
 
     _, output, _ = run(store, wordpress, "push")
-    assert output == "Nothing to push.\n"
+    assert output == "  Nothing to push.\n"
     _, output, _ = run(store, wordpress, "diff", "-p")
     assert output.splitlines() == [
-        "- l  1  content/post-1.md  deletes on push",
-        f"?    2  {both}",
+        "     content/",
+        "-  r   post-1.md",
+        "?  r   post-2.md",
     ]
 
     _, output, _ = run(store, wordpress, "push", "-p")
     assert output.splitlines() == [
-        "-  1  content/post-1.md  deleted; kept in .trash/",
-        f"?  2  {both}",
-        "Pushed 1 post (1 deleted); 1 skipped. "
+        "  - content/post-1.md",
+        "  ? content/post-2.md",
+        "Push complete: 1 change; 1 skipped. "
         "Rerun with --yes to accept the skipped changes.",
     ]
     assert wordpress.deleted == [("posts", 1)]
     assert "id: 1\n" in (tmp_path / ".trash/content/post-1.md").read_text()
 
     _, output, _ = run(store, wordpress, "push", "-p", "-y")
-    assert output.splitlines()[-1] == "Pushed 1 post (1 deleted)."
+    assert output.splitlines()[-1] == "Push complete: 1 change."
     copy = (tmp_path / ".trash/content/post-2.md").read_text()
     assert "title: Edited on WordPress\n" in copy
     _, output, _ = run(store, wordpress, "pull")
-    assert output.splitlines()[-1] == "Nothing to pull."
+    assert output.splitlines()[-1] == "  Nothing to pull."

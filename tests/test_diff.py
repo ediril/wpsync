@@ -69,7 +69,7 @@ def test_diff_without_local_changes_never_contacts_the_blog(tmp_path, store):
     )
 
     assert (status, errors) == (0, "")
-    assert output == "No local changes.\nNot shown: 2 unchanged (-a to show)\n"
+    assert output == "No local changes.\n"
     assert wordpress.requests == []
 
 
@@ -99,38 +99,30 @@ def test_diff_shows_local_changes_and_fetches_only_those_posts(tmp_path, store):
 
     assert status == 0
     assert output.splitlines() == [
-        "~ l  3  content/blocks.md  content; block post becomes plain HTML on push",
-        "?    4  content/both.md  "
-        "content; also changed on WordPress since the last sync",
-        "~ l  1  content/content.md  content",
-        "- l  5  content/deleted.md",
-        "~ l  2  content/details.md  details",
-        "x l  -  content/note.md  (private)",
-        "~ l  7  content/unpublish.md  unpublish; becomes a draft on WordPress",
-        "Not shown: 1 unchanged (-a to show)",
+        "     content/",
+        "~      blocks.md",
+        "?      both.md",
+        "~      content.md",
+        "~      details.md",
+        "~      unpublish.md",
+        "Not shown: 1 private (try using -x), 1 remote-only (try using -a)",
     ]
     fetched = [r.url.params.get("include") for r in wordpress.requests]
     assert fetched == ["1,2,3,4,7"]
 
 
-def test_diff_matches_new_files_by_slug_and_notes_shared_titles(tmp_path, store):
+def test_diff_marks_a_new_file_whose_slug_is_taken_as_a_conflict(tmp_path, store):
     wordpress = FakeWordPress(post_count=3)
-    wordpress.posts.append({**wordpress.post(2), "id": 9, "slug": "post-2-copy"})
     add_profile(store, "myblog", tmp_path)
     new_post(tmp_path, "a.md", title="Different", slug="post-1")
-    new_post(tmp_path, "b.md", title="Post 3")
-    new_post(tmp_path, "c.md", title="Post 2")
     new_post(tmp_path, "d.md", title="Fresh")
 
     status, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
 
-    assert status == 0
-    assert output.splitlines() == [
-        "? l  -  content/a.md  same slug as #1 'Post 1'",
-        "+ l  -  content/b.md  same title as #3",
-        "+ l  -  content/c.md  same title as #2, #9",
-        "+ l  -  content/d.md",
-    ]
+    assert (status, output.splitlines()) == (
+        0,
+        ["     content/", "?  l   a.md", "+  l   d.md"],
+    )
 
 
 def test_one_post_is_selected_by_id_slug_file_name_or_path(
@@ -147,9 +139,10 @@ def test_one_post_is_selected_by_id_slug_file_name_or_path(
 
     for selector in ("2", "post-2", "two", "two.md", "content/2019/two.md"):
         status, output, _ = invoke(["diff", selector], store, wordpress=wordpress)
-        assert (status, output) == (0, "~ l  2  content/2019/two.md  content\n"), (
-            selector
-        )
+        assert (status, output) == (
+            0,
+            "     content/\n       2019/\n~        two.md\n",
+        ), selector
 
     status, _, errors = invoke(["diff", "one.md"], store, wordpress=wordpress)
     assert (status, errors) == (
@@ -158,7 +151,7 @@ def test_one_post_is_selected_by_id_slug_file_name_or_path(
     )
     monkeypatch.chdir(tmp_path / "content")
     status, output, _ = invoke(["diff", "one.md"], store, wordpress=wordpress)
-    assert (status, output) == (0, "~ l  1  content/one.md  content\n")
+    assert (status, output) == (0, "     content/\n~      one.md\n")
 
     status, _, errors = invoke(["diff", "post-9"], store, wordpress=wordpress)
     assert status == 1
@@ -229,3 +222,21 @@ def test_state_from_another_blog_is_refused(tmp_path, store):
 
     assert status == 1
     assert "synchronized with a different blog" in errors
+
+
+def test_diff_lists_folders_before_files_with_their_posts_indented(tmp_path, store):
+    wordpress = FakeWordPress(post_count=3)
+    add_profile(store, "myblog", tmp_path)
+    (tmp_path / "content/2019").mkdir(parents=True)
+    for post_id, name in ((1, "b.md"), (2, "2019/c.md"), (3, "a.md")):
+        edit(synced(tmp_path, wordpress, post_id, name), "Body", "New body")
+
+    _, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
+
+    assert output.splitlines() == [
+        "     content/",
+        "       2019/",
+        "~        c.md",
+        "~      a.md",
+        "~      b.md",
+    ]

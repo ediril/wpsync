@@ -45,7 +45,7 @@ class DeleteRemote(Protocol):
 class Deleted:
     trashed: PurePosixPath
     """Where the post's file is now."""
-    media: int
+    media: list[PurePosixPath]
     """Library images deleted from the blog."""
 
 
@@ -107,7 +107,7 @@ def delete_post(
             state.forget(post_id)
             for record in deleted:
                 state.forget_media(record.path)
-    return Deleted(trashed, len(deleted))
+    return Deleted(trashed, [record.path for record in deleted])
 
 
 def restore_post(root: Path, item: LocalDocument) -> PurePosixPath:

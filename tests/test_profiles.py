@@ -116,7 +116,7 @@ def test_first_pull_signs_in_through_a_rest_route_api_root(tmp_path, store):
         "Note: this account can edit only its own posts, so posts by other "
         "authors are not pulled.",
     ]
-    assert lines[-1] == "Pulled 120 posts (120 new)."
+    assert lines[-1] == "Pull complete: 120 changes."
 
 
 @pytest.mark.parametrize(

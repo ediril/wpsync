@@ -46,7 +46,7 @@ from wpsync.state import (
     read_media,
     read_records,
 )
-from wpsync.sync import Action, DiffEntry, SelectionError, compare, select
+from wpsync.sync import Action, DiffEntry, Outcome, SelectionError, compare, select
 from wpsync.trash import TrashError, delete_post, restore_post
 from wpsync.wordpress.client import WordPressClient, WordPressError, discover_api_root
 from wpsync.wordpress.remote import WordPressRemote
@@ -100,14 +100,22 @@ MARKER_COLORS = {
     "l": "\033[38;5;51m",
     "r": "\033[38;5;30m",
 }
+DIRECTORY_COLOR = "\033[38;5;75m"
 LEGEND = (
-    ("+ l", "new local post; push creates it"),
-    ("~ l", "changed locally; push updates the post"),
-    ("- l", "deleted locally; push -p deletes it from WordPress"),
-    ("?  ", "conflict or ambiguous match; push stops and asks"),
-    ("=  ", "unchanged (shown with -a)"),
-    ("x l", "private; push skips it"),
+    ("+  l", "local only; push creates the post"),
+    ("~   ", "on both sides; push updates the post"),
+    ("   r", "on WordPress only; push keeps it"),
+    ("-  r", "on WordPress only; push -p deletes it"),
+    (" x  ", "private; push skips it"),
+    ("l", "local only"),
+    ("r", "on WordPress only"),
+    (" ", "blank side column: on both sides"),
+    ("?", "conflict; push asks first, or cannot send it"),
+    ("=", "unchanged"),
+    ("x", "private"),
+    ("/", "folder"),
 )
+HIDDEN_HINTS = {Action.PRIVATE: ("private", "-x"), Action.KEPT: ("remote-only", "-a")}
 LS_LEGEND = (
     ("*", "Public: push publishes it (blank means private)"),
     ("*Jan 1, 2029", "Public: scheduled; the blog shows it from that date"),
@@ -387,8 +395,8 @@ def build_parser() -> argparse.ArgumentParser:
         "diff",
         help="show what push would change",
         usage=(
-            "wpsync diff [ID|SLUG] [-a] [-p]\n"
-            "       wpsync PROFILE diff [ID|SLUG] [-a] [-p]"
+            "wpsync diff [ID|SLUG] [-a] [-x] [-p]\n"
+            "       wpsync PROFILE diff [ID|SLUG] [-a] [-x] [-p]"
         ),
         description=(
             "Show local changes and anything that would stop a push. Contacts the "
@@ -400,7 +408,13 @@ def build_parser() -> argparse.ArgumentParser:
         "post", nargs="?", metavar="ID|SLUG", help="one post; all when omitted"
     )
     diff.add_argument(
-        "-a", "--all", action="store_true", help="also show unchanged posts"
+        "-a", "--all", action="store_true", help="show every post, unchanged too"
+    )
+    diff.add_argument(
+        "-x",
+        "--excluded",
+        action="store_true",
+        help="also show private posts, which push skips",
     )
     diff.add_argument(
         "-p",
@@ -669,7 +683,12 @@ def _paint(text: str, color: bool) -> str:
 def _legend(session: _Session) -> str:
     color = _use_color(session.stdout, session.environ)
     lines = ["Diff legend:"]
-    lines.extend(f"  {_paint(marker, color)}  {meaning}" for marker, meaning in LEGEND)
+    for marker, meaning in LEGEND:
+        if marker == "/":
+            shown = f"{DIRECTORY_COLOR}/{RESET}" if color else marker
+        else:
+            shown = _paint(marker, color)
+        lines.append(f"  {shown}  {meaning}")
     lines.append("ls legend:")
     width = max(len(marker) for marker, _ in LS_LEGEND)
     lines.extend(f"  {marker:<{width}}  {meaning}" for marker, meaning in LS_LEGEND)
@@ -891,31 +910,69 @@ def _diff(arguments: argparse.Namespace, session: _Session) -> str:
     if not result.entries:
         return NO_POSTS
     color = _use_color(session.stdout, session.environ)
-    quiet = (Action.UNCHANGED,)
-    shown = [e for e in result.entries if arguments.all or e.action not in quiet]
-    hidden = Counter(e.action for e in result.entries if e not in shown)
-    width = max((len(e.post_id or "-") for e in shown), default=1)
-    lines = [_entry_line(entry, color, width) for entry in shown]
+    shown, hidden = [], Counter()
+    for entry in result.entries:
+        visible = (
+            arguments.all
+            or entry.action not in (Action.UNCHANGED, Action.PRIVATE, Action.KEPT)
+            or (entry.action is Action.PRIVATE and arguments.excluded)
+        )
+        if visible:
+            shown.append(entry)
+        elif entry.action in HIDDEN_HINTS:
+            hidden[entry.action] += 1
+    lines = _diff_tree(shown, color)
     if not shown:
         lines.append("No local changes.")
     if hidden:
         counts = [
-            f"{hidden[action]} {action.name.lower()}"
-            for action in quiet
+            f"{hidden[action]} {name} (try using {flag})"
+            for action, (name, flag) in HIDDEN_HINTS.items()
             if hidden[action]
         ]
-        lines.append(f"Not shown: {', '.join(counts)} (-a to show)")
+        lines.append(f"Not shown: {', '.join(counts)}")
     lines.extend(f"Note: {note}" for note in result.notes)
     return "\n".join(lines)
 
 
-def _entry_line(
-    entry: DiffEntry, color: bool, width: int = 1, sides: bool = True
-) -> str:
-    marker = f"{entry.action} {entry.side or ' '}" if sides else entry.action.value
-    marker = _paint(marker, color)
-    detail = f"  {entry.detail}" if entry.detail else ""
-    return f"{marker}  {entry.post_id or '-':>{width}}  {entry.path}{detail}"
+def _diff_tree(entries: list[DiffEntry], color: bool) -> list[str]:
+    """HLSync's diff layout: status slots, then folders before files, indented."""
+
+    def order(entry: DiffEntry) -> list[tuple[int, str]]:
+        *folders, name = entry.path.parts
+        return [(0, folder) for folder in folders] + [(1, name)]
+
+    lines: list[str] = []
+    opened: tuple[str, ...] = ()
+    for entry in sorted(entries, key=order):
+        *folders, name = entry.path.parts
+        common = 0
+        while common < min(len(opened), len(folders)) and (
+            opened[common] == folders[common]
+        ):
+            common += 1
+        for depth in range(common, len(folders)):
+            folder = f"{folders[depth]}/"
+            if color:
+                folder = f"{DIRECTORY_COLOR}{folder}{RESET}"
+            lines.append(f"     {'  ' * depth}{folder}")
+        opened = tuple(folders)
+        lines.append(_status_line(entry, name, len(folders), color))
+    return lines
+
+
+def _status_line(entry: DiffEntry, name: str, depth: int, color: bool) -> str:
+    """Action, exclusion, and presence slots, as HLSync shows them."""
+    private = entry.action is Action.PRIVATE
+    action = " " if private else entry.action.value
+    exclusion = "x" if private else " "
+    presence = entry.presence or " "
+    status = f"{action}{exclusion} {presence}"
+    if not color:
+        return f"{status} {'  ' * depth}{name}"
+    style = MARKER_COLORS.get(action) or MARKER_COLORS.get(presence)
+    painted = f"{style}{name}{RESET}" if style else name
+    return f"{_paint(status, color)} {'  ' * depth}{painted}"
 
 
 def _pull_target(
@@ -1022,7 +1079,8 @@ def _delete(arguments: argparse.Namespace, session: _Session) -> str:
         return f"#{post_id} was already gone from WordPress; {moved}."
     images = ""
     if deleted.media:
-        images = f", with {deleted.media} image{'s' * (deleted.media != 1)}"
+        count = len(deleted.media)
+        images = f", with {count} image{'s' * (count != 1)}"
     return f"Deleted #{post_id} from WordPress{images}; {moved}."
 
 
@@ -1094,11 +1152,19 @@ def _confirmer(session: _Session, yes: bool) -> Callable[[str], bool]:
     return confirm
 
 
-def _reporter(session: _Session) -> Callable[[DiffEntry], None]:
+def _reporter(session: _Session) -> Callable[[Outcome], None]:
     color = _use_color(session.stdout, session.environ)
 
-    def report(entry: DiffEntry) -> None:
-        print(_entry_line(entry, color, sides=False), file=session.stdout, flush=True)
+    def report(outcome: Outcome) -> None:
+        if outcome.failure:
+            line = f"failed  {outcome.path}: {outcome.failure}"
+            line = f"{MARKER_COLORS['-']}{line}{RESET}" if color else line
+        else:
+            marker = outcome.action.value
+            style = MARKER_COLORS.get(marker) if color else None
+            line = f"{marker} {outcome.path}"
+            line = f"{style}{line}{RESET}" if style else line
+        print(f"  {line}", file=session.stdout, flush=True)
 
     return report
 
@@ -1135,7 +1201,7 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> str:
         remote.close()
         client.http.close()
     summary = result.summary()
-    if result.skipped and not yes:
+    if result.declined and not yes:
         summary += " Rerun with --yes to accept the skipped changes."
     return summary
 
@@ -1194,7 +1260,7 @@ def _push(arguments: argparse.Namespace, session: _Session) -> str:
     summary = result.summary()
     if result.declined and not arguments.yes:
         summary += " Rerun with --yes to accept the skipped changes."
-    return summary
+    return "\n".join([summary, *(f"Note: {note}" for note in result.notes)])
 
 
 HANDLERS = {

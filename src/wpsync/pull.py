@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import hashlib
 from collections.abc import Callable
-from dataclasses import dataclass, replace
+from dataclasses import dataclass, field, replace
 from pathlib import Path, PurePosixPath
 from typing import Protocol
 
@@ -22,7 +22,7 @@ from wpsync.media import Media, MediaLibrary, MissingImage, PostMedia, image_pat
 from wpsync.posts import Conversion, FetchedPost, Post, UnrepresentableContent
 from wpsync.state import MediaRecord, PostRecord, write_state
 from wpsync.storage import write_atomic, write_text_atomic
-from wpsync.sync import Action, DiffEntry, SelectionError, match_post
+from wpsync.sync import Action, Outcome, SelectionError, match_post
 
 
 class PullRemote(Protocol):
@@ -49,48 +49,35 @@ class _LocalCandidate:
 
 @dataclass
 class PullResult:
-    new: int = 0
-    updated: int = 0
-    linked: int = 0
-    images: int = 0
+    changes: int = 0
+    """Post files and images written."""
     missing_files: int = 0
     skipped: int = 0
-    changes_kept: int = 0
+    declined: int = 0
+    """Skipped posts that answering yes would have pulled."""
+    deleted_locally: list[str] = field(default_factory=list)
+    deleted_remotely: list[str] = field(default_factory=list)
 
     def summary(self) -> str:
-        pulled = self.new + self.updated + self.linked
-        missing = self.missing_files
-        gone = f"{missing} file{'s' * (missing != 1)} missing from the blog"
-        if not pulled and not self.skipped:
-            images = self.images
-            restored = f"Restored {images} image{'s' * (images != 1)}"
-            notes = [restored if images else "Nothing to pull"]
-            if self.changes_kept:
-                kept = self.changes_kept
-                notes.append(f"{kept} post{'s' * (kept != 1)} with local changes")
-            if missing:
-                notes.append(gone)
-            return "; ".join(notes) + "."
-        parts = [
-            f"{count} {label}"
-            for count, label in (
-                (self.new, "new"),
-                (self.updated, "updated"),
-                (self.linked, "linked"),
-            )
-            if count
-        ]
-        line = f"Pulled {pulled} post{'s' * (pulled != 1)}"
-        line += f" ({', '.join(parts)})" if parts else ""
-        if self.images:
-            line += f", {self.images} image{'s' * (self.images != 1)}"
-        if missing:
-            line += f"; {gone}"
+        tail = ""
+        if self.missing_files:
+            missing = self.missing_files
+            tail += f"; {missing} file{'s' * (missing != 1)} missing from the blog"
         if self.skipped:
-            line += f"; {self.skipped} skipped"
-        if self.changes_kept:
-            line += f"; {self.changes_kept} with local changes left alone"
-        return line + "."
+            tail += f"; {self.skipped} skipped"
+        if self.changes:
+            changes = f"{self.changes} change{'s' * (self.changes != 1)}"
+            lines = [f"Pull complete: {changes}{tail}."]
+        else:
+            lines = [f"  Nothing to pull{tail}."]
+        for heading, paths in (
+            ("Deleted locally, not restored:", self.deleted_locally),
+            ("Deleted on WordPress, local files kept:", self.deleted_remotely),
+        ):
+            if paths:
+                lines.append(heading)
+                lines.extend(f"  {path}" for path in paths)
+        return "\n".join(lines)
 
 
 class Puller:
@@ -103,7 +90,7 @@ class Puller:
         records: dict[str, PostRecord],
         media: list[MediaRecord],
         confirm: Callable[[str], bool],
-        report: Callable[[DiffEntry], None],
+        report: Callable[[Outcome], None],
     ) -> None:
         self.root = root
         self.api_root = api_root
@@ -136,24 +123,15 @@ class Puller:
                 self.records.items(), key=lambda r: int(r[0])
             ):
                 if post_id not in present and post_id in self.documents:
-                    self._line(
-                        Action.DELETED,
-                        post_id,
-                        record.path,
-                        "deleted on WordPress; local file kept",
-                    )
+                    path = str(self.documents[post_id].path)
+                    self.result.deleted_remotely.append(path)
         return self.result
 
     def _pull_post(self, post: FetchedPost) -> None:
         document = self.documents.get(post.id)
         record = self.records.get(post.id)
         if record is not None and document is None:
-            self._line(
-                Action.DELETED,
-                post.id,
-                record.path,
-                "deleted locally; not restored",
-            )
+            self.result.deleted_locally.append(str(record.path))
             return
         if record is not None and document is not None:
             self._pull_tracked(post, document, record)
@@ -171,7 +149,6 @@ class Puller:
             or fields_checksum(local) != record.fields_checksum
         )
         if post.state.fingerprint == record.remote_fingerprint:
-            self.result.changes_kept += changed_locally
             self._refresh(post, record)
             return
         path = PurePosixPath(document.path)
@@ -179,18 +156,13 @@ class Puller:
             f"#{post.id} {path} changed locally and on WordPress. "
             "Replace your file with WordPress's version?"
         ):
-            self._skip(post.id, path, "changed on both sides; your file is unchanged")
+            self._decline(path)
             return
-        if self._write(post, path, document.document, Action.CHANGED):
-            self.result.updated += 1
+        self._write(post, path, document.document, Action.CHANGED)
 
     def _refresh(self, post: FetchedPost, record: PostRecord) -> None:
         """Bring an unchanged post's address and missing files up to date."""
         missing = tuple(url for url in record.missing_files if not self._is_back(url))
-        found = len(record.missing_files) - len(missing)
-        if found:
-            detail = f"{found} missing file{'s' * (found != 1)} back"
-            self._line(Action.CHANGED, post.id, record.path, detail)
         self.result.missing_files += len(missing)
         current = replace(record, url=post.url, missing_files=missing)
         if current != record:
@@ -216,7 +188,7 @@ class Puller:
         self.library.add(restored)
         with write_state(self.root, self.api_root) as state:
             state.save_media(restored)
-        self.result.images += 1
+        self._report(Action.NEW, image.path)
         return True
 
     def _pull_unrecorded(self, post: FetchedPost, document: LocalDocument) -> None:
@@ -225,20 +197,13 @@ class Puller:
             f"{path} has id {post.id} but was never synced here. "
             "Replace it with WordPress's version?"
         )
-        self._link(
-            post,
-            path,
-            document.document,
-            Action.CHANGED,
-            question,
-            "never synced here; your file is unchanged",
-        )
+        self._link(post, path, document.document, Action.CHANGED, question)
 
     def _pull_new(self, post: FetchedPost) -> None:
         match = match_post(post.post, self.unlinked)
         if match.candidates:
             files = ", ".join(c.id for c in match.candidates)
-            self._skip(post.id, None, f"same slug as several local files: {files}")
+            self._fail(f"#{post.id}", f"same slug as several local files: {files}")
             return
         if match.post is not None:
             candidate = match.post
@@ -253,14 +218,12 @@ class Puller:
                 candidate.document.document,
                 Action.NEW,
                 question,
-                "same slug as this file; not linked",
             ):
                 self.unlinked.remove(candidate)
             return
         path = self._new_path(post)
         self.taken.add(path)
-        if self._write(post, path, Document(post.id, post.post), Action.NEW):
-            self.result.new += 1
+        self._write(post, path, Document(post.id, post.post), Action.NEW)
 
     def _link(
         self,
@@ -269,7 +232,6 @@ class Puller:
         document: Document,
         action: Action,
         question: str,
-        declined: str,
     ) -> bool:
         """Link a file to a post, asking only if WordPress's version changes it."""
         conversion = self._convert(post, path)
@@ -278,21 +240,15 @@ class Puller:
         remote = replace(post.post, body=conversion.markdown.strip("\n"))
         if document.post_id == post.id and remote == document.post:
             # The file is untouched, but the images it shows may not be there yet.
-            images, missing, details = self._save_media(path, conversion)
+            images, missing = self._save_media(path, conversion)
             self._record(post, path, document, images, missing)
-            detail = "; ".join(["linked; already identical", *details])
-            self._line(Action.UNCHANGED, post.id, path, detail)
-            self.result.linked += 1
             return True
         if not _only_fills_in(document.post, remote) and not self.confirm(question):
             for download in self.library.take_pending():
                 self.library.release(download)
-            self._skip(post.id, path, declined)
+            self._decline(path)
             return False
-        if not self._write(post, path, document, action, conversion):
-            return False
-        self.result.linked += 1
-        return True
+        return self._write(post, path, document, action, conversion)
 
     def _new_path(self, post: FetchedPost) -> PurePosixPath:
         for name in (post.name, f"{post.name}-{post.id}"):
@@ -313,7 +269,7 @@ class Puller:
             conversion = self._convert(post, path)
             if conversion is None:
                 return False
-        images, missing, details = self._save_media(path, conversion)
+        images, missing = self._save_media(path, conversion)
         written = Document(
             post.id,
             replace(post.post, body=conversion.markdown.strip("\n")),
@@ -321,14 +277,12 @@ class Puller:
         )
         write_text_atomic(self.root / path, serialize_document(written), mode=0o644)
         self._record(post, path, written, images, missing)
-        if conversion.kept:
-            details.append("kept as HTML: " + ", ".join(dict.fromkeys(conversion.kept)))
-        self._line(action, post.id, path, "; ".join(details))
+        self._report(action, path)
         return True
 
     def _save_media(
         self, path: PurePosixPath, conversion: Conversion
-    ) -> tuple[list[MediaRecord], list[str], list[str]]:
+    ) -> tuple[list[MediaRecord], list[str]]:
         """Save the images a converted post shows, and report missing files."""
         used = {
             image
@@ -360,6 +314,7 @@ class Puller:
             if data is not None:
                 if fresh:
                     write_atomic(self.root / download.path, data, mode=0o644)
+                    self._report(Action.NEW, download.path)
                 checksum = hashlib.sha256(data).hexdigest()
             image = MediaRecord(
                 download.path, checksum, download.media_id, download.url, download.size
@@ -370,15 +325,8 @@ class Puller:
         missing = [
             record.url for record in shown if record and not record.checksum
         ] + pages_gone
-        fetched = sum(data is not None and fresh for _, data, fresh in files)
-        self.result.images += fetched
         self.result.missing_files += len(missing)
-        details = []
-        if fetched:
-            details.append(f"{fetched} image{'s' * (fetched != 1)}")
-        if missing:
-            details.append("missing: " + ", ".join(missing))
-        return images, missing, details
+        return images, missing
 
     def _convert(self, post: FetchedPost, path: PurePosixPath) -> Conversion | None:
         try:
@@ -386,7 +334,7 @@ class Puller:
         except UnrepresentableContent as error:
             for download in self.library.take_pending():
                 self.library.release(download)
-            self._skip(post.id, path, f"not pulled: {error}")
+            self._fail(str(path), str(error))
             return None
 
     def _record(
@@ -415,18 +363,18 @@ class Puller:
                 )
             )
 
-    def _skip(self, post_id: str, path: PurePosixPath | None, detail: str) -> None:
-        self.result.skipped += 1
-        self._line(Action.CONFLICT, post_id, path or PurePosixPath("-"), detail)
+    def _report(self, action: Action, path: PurePosixPath) -> None:
+        self.result.changes += 1
+        self.report(Outcome(action, str(path)))
 
-    def _line(
-        self,
-        action: Action,
-        post_id: str,
-        path: PurePosixPath,
-        detail: str = "",
-    ) -> None:
-        self.report(DiffEntry(action, "", post_id, path, detail))
+    def _decline(self, path: PurePosixPath) -> None:
+        self.result.skipped += 1
+        self.result.declined += 1
+        self.report(Outcome(Action.CONFLICT, str(path)))
+
+    def _fail(self, label: str, reason: str) -> None:
+        self.result.skipped += 1
+        self.report(Outcome(Action.CONFLICT, label, reason))
 
 
 def _only_fills_in(local: Post, remote: Post) -> bool:

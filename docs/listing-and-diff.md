@@ -66,32 +66,42 @@ wpsync diff hello    # one post, by slug
 wpsync diff "Hello World"   # one post, by title
 wpsync diff new-idea.md     # one post, by file name in any folder
 wpsync diff content/new-idea.md   # one post, by path
-wpsync diff -a       # also list unchanged posts
+wpsync diff -a       # show every post, unchanged too
+wpsync diff -x       # also show private posts, which push skips
 wpsync diff -p       # show what push -p would delete from the blog
 wpsync --legend      # explain the diff and ls symbols
 ```
 
 ```text
-~ l  123  content/hello-world.md  content; block post becomes plain HTML on push
-~ l  145  content/release-notes.md  details
-?    150  content/about.md  content; also changed on WordPress since the last sync
-- l  160  content/old.md
-+ l    -  content/new-idea.md
-x l    -  content/draft.md  (private)
-~ l  170  content/old-news.md  unpublish; becomes a draft on WordPress
-Not shown: 12 unchanged (-a to show)
+     content/
+       2019/
+?        about.md
++  l   new-idea.md
+~      release-notes.md
+Not shown: 1 private (try using -x), 1 remote-only (try using -a)
 ```
 
-`content` means the body changed and `details` means a header field changed.
-A private post that is new or changed shows as `x l`: push skips it, so its
-edits stay local until you set `status: public`.
+Diff uses HLSync's layout. Folders come before files, with their posts
+indented beneath them. The status has three slots:
+
+- the action: `+` push creates the post, `~` push updates it, `-` push `-p`
+  deletes it, `?` a conflict push asks about or cannot send, `=` unchanged;
+- `x` when the post is private, so push skips it and its edits stay local until
+  you set `status: public`;
+- where the post exists: `l` only as a local file, `r` only on WordPress, blank
+  on both sides.
+
+Unchanged posts are shown with `-a`, private ones with `-x`, and posts whose
+file you deleted, which push keeps on the blog (`   r`), with `-a` or `-p`.
+`wpsync --legend` explains each symbol.
 `diff` never changes anything. It contacts the blog only for posts that changed
 locally, to check whether they also changed on WordPress since the last sync,
 and for new files, to check their slugs and titles against existing posts. A
-taken slug is a conflict (`?`); a shared title is noted, since push asks before
-creating a second post with the same title.
-With `-p`, it also checks each post whose file you deleted: unchanged on
-WordPress, it shows as `- l` and `deletes on push`; changed there since the
-last sync, it is a conflict (`?`), since `push -p` asks first.
+taken slug is a conflict (`?`). With `-p`, it also checks each post whose file
+you deleted: unchanged on WordPress, it shows as `-  r`; changed there since the
+last sync, it is a conflict (`?  r`), since `push -p` asks first. Push asks
+before anything risky, such as replacing a post that also changed on
+WordPress, creating a second post with the same title, or turning a
+block-editor post into plain HTML, and its question says why.
 With no local changes it works offline. Posts created or edited on WordPress
 appear only through `pull`.

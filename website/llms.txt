@@ -20,6 +20,10 @@ WordPress is a trademark of the WordPress Foundation. WPSync is an independent p
 - [Changelog](https://github.com/ediril/wpsync/blob/main/CHANGELOG.md): Version history and completed behavior changes.
 - [License](https://github.com/ediril/wpsync/blob/main/LICENSE): Full PolyForm Strict 1.0.0 terms defining permitted uses and restrictions. Commercial use outside those permissions requires a separate paid license. Contact emrah@diril.org for pricing.
 
+## Blog
+
+- [WPSync blog](https://wpsync.dev/blog/): Release notes, writing workflows, and how-tos.
+
 ## Source
 
 - [GitHub repository](https://github.com/ediril/wpsync): Source code, issue tracker, and project files.

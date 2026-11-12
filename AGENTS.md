@@ -40,6 +40,10 @@
   payment webhook secret, live only in environment variables; code and docs
   refer to them by variable name. Notes that should not be public go in the
   git-ignored `private/` folder; plans and decisions may be public.
+- The websites (wpsync.dev, and HLSync's) run on the user's nginx server with
+  PHP-FPM, not Apache. Never add `.htaccess` files; routing and access rules go
+  in the site's `nginx.conf` server block, following emrahdiril.com's
+  (`../emrahdiril.com/nginx.conf`).
 - The user has several real WordPress blogs for testing later. Pull and diff
   are read-only and safe to try first; push testing starts with drafts or a
   blog the user designates.

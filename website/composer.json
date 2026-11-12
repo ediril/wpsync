@@ -1,0 +1,14 @@
+{
+    "name": "ediril/wpsync-website",
+    "type": "project",
+    "license": ["PolyForm-Strict-1.0.0"],
+    "require": {
+        "league/commonmark": "^2.10",
+        "symfony/yaml": "^7.4"
+    },
+    "config": {
+        "platform": {
+            "php": "8.3.0"
+        }
+    }
+}

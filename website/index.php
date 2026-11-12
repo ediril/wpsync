@@ -1,144 +1,45 @@
 <?php
 declare(strict_types=1);
 
-$repository = 'https://github.com/ediril/wpsync';
-$year = (int) date('Y');
-$title = 'WPSync — your WordPress blog, as Markdown files';
-$description = 'Pull your WordPress posts into a folder, write in Obsidian or VS Code, preview the diff, then push exactly what you changed.';
-$requestHost = (string) ($_SERVER['HTTP_HOST'] ?? '');
-$validHost = preg_match('/\A[a-z0-9.-]+(?::[0-9]+)?\z/i', $requestHost) === 1;
-$forwardedProtocol = strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? ''));
-$secureRequest = (
-    strtolower((string) ($_SERVER['HTTPS'] ?? '')) === 'on'
-    || $forwardedProtocol === 'https'
-);
-$requestPath = parse_url((string) ($_SERVER['REQUEST_URI'] ?? '/'), PHP_URL_PATH);
-$pagePath = is_string($requestPath) && str_starts_with($requestPath, '/')
-    ? $requestPath
-    : '/';
-$origin = $validHost
-    ? ($secureRequest ? 'https://' : 'http://') . $requestHost
-    : null;
-$canonicalUrl = $origin === null ? null : $origin . $pagePath;
-$socialImageUrl = $origin === null
-    ? null
-    : $origin . '/assets/social-preview.jpg';
-$structuredData = [
-    '@context' => 'https://schema.org',
-    '@type' => 'SoftwareApplication',
-    'name' => 'WPSync',
-    'description' => $description,
-    'applicationCategory' => 'DeveloperApplication',
-    'operatingSystem' => 'Any operating system with Python 3.11+',
-    'url' => $canonicalUrl ?? $repository,
-    'downloadUrl' => 'https://pypi.org/project/wpsync/',
-    'sameAs' => $repository,
-    'license' => $repository . '/blob/main/LICENSE',
-    'offers' => [
-        [
-            '@type' => 'Offer',
-            'name' => 'PolyForm Strict license',
-            'description' => 'No charge for uses permitted by PolyForm Strict 1.0.0. Listed personal uses must have no anticipated commercial application. The license also permits use by listed organizations. No rights to modify, redistribute, or create works based on WPSync are granted.',
-            'price' => '0',
-            'priceCurrency' => 'USD',
-            'url' => $repository . '/blob/main/LICENSE',
-        ],
-        [
-            '@type' => 'Offer',
-            'name' => 'Commercial license',
-            'description' => 'Commercial use outside the permissions of PolyForm Strict 1.0.0 requires a separate paid agreement before use. Contact emrah@diril.org for pricing.',
-            'url' => ($canonicalUrl ?? $repository) . '#pricing',
+require __DIR__ . '/site.php';
+
+$canonicalUrl = site_origin() === null ? null : site_origin() . request_path();
+render_head([
+    'title' => 'WPSync — your WordPress blog, as Markdown files',
+    'description' => SITE_DESCRIPTION,
+    'type' => 'website',
+    'structured_data' => [
+        '@context' => 'https://schema.org',
+        '@type' => 'SoftwareApplication',
+        'name' => 'WPSync',
+        'description' => SITE_DESCRIPTION,
+        'applicationCategory' => 'DeveloperApplication',
+        'operatingSystem' => 'Any operating system with Python 3.11+',
+        'url' => $canonicalUrl ?? REPOSITORY,
+        'downloadUrl' => 'https://pypi.org/project/wpsync/',
+        'sameAs' => REPOSITORY,
+        'license' => REPOSITORY . '/blob/main/LICENSE',
+        'offers' => [
+            [
+                '@type' => 'Offer',
+                'name' => 'PolyForm Strict license',
+                'description' => 'No charge for uses permitted by PolyForm Strict 1.0.0. Listed personal uses must have no anticipated commercial application. The license also permits use by listed organizations. No rights to modify, redistribute, or create works based on WPSync are granted.',
+                'price' => '0',
+                'priceCurrency' => 'USD',
+                'url' => REPOSITORY . '/blob/main/LICENSE',
+            ],
+            [
+                '@type' => 'Offer',
+                'name' => 'Commercial license',
+                'description' => 'Commercial use outside the permissions of PolyForm Strict 1.0.0 requires a separate paid agreement before use. Contact emrah@diril.org for pricing.',
+                'url' => ($canonicalUrl ?? REPOSITORY) . '#pricing',
+            ],
         ],
     ],
-];
-if ($socialImageUrl !== null) {
-    $structuredData['image'] = $socialImageUrl;
-}
-$structuredDataJson = json_encode(
-    $structuredData,
-    JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT
-        | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE,
-);
-if ($structuredDataJson === false) {
-    throw new RuntimeException('Could not encode website structured data.');
-}
-
-function h(string $value): string
-{
-    return htmlspecialchars($value, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-}
+]);
 ?>
-<!doctype html>
-<html lang="en">
-<head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <meta name="theme-color" content="#080b10">
-    <meta name="description" content="<?= h($description) ?>">
-    <meta name="robots" content="index, follow, max-image-preview:large">
-    <meta name="author" content="WPSync contributors">
-    <meta property="og:type" content="website">
-    <meta property="og:locale" content="en_US">
-    <meta property="og:site_name" content="WPSync">
-    <meta property="og:title" content="<?= h($title) ?>">
-    <meta property="og:description" content="<?= h($description) ?>">
-<?php if ($canonicalUrl !== null && $socialImageUrl !== null): ?>
-    <link rel="canonical" href="<?= h($canonicalUrl) ?>">
-    <meta property="og:url" content="<?= h($canonicalUrl) ?>">
-    <meta property="og:image" content="<?= h($socialImageUrl) ?>">
-<?php if ($secureRequest): ?>
-    <meta property="og:image:secure_url" content="<?= h($socialImageUrl) ?>">
-<?php endif; ?>
-<?php endif; ?>
-    <meta property="og:image:type" content="image/jpeg">
-    <meta property="og:image:width" content="1200">
-    <meta property="og:image:height" content="630">
-    <meta property="og:image:alt" content="WPSync terminal session: pull posts, diff, then push to WordPress.">
-    <meta name="twitter:card" content="summary_large_image">
-    <meta name="twitter:title" content="<?= h($title) ?>">
-    <meta name="twitter:description" content="<?= h($description) ?>">
-<?php if ($socialImageUrl !== null): ?>
-    <meta name="twitter:image" content="<?= h($socialImageUrl) ?>">
-    <meta name="twitter:image:alt" content="WPSync terminal session: pull posts, diff, then push to WordPress.">
-<?php endif; ?>
-    <script type="application/ld+json"><?= $structuredDataJson ?></script>
-    <title><?= h($title) ?></title>
-    <link rel="describedby" href="/llms.txt" type="text/markdown">
-    <link rel="icon" href="assets/favicon.svg" type="image/svg+xml">
-    <link rel="icon" href="assets/favicon-32x32.png" type="image/png" sizes="32x32">
-    <link rel="shortcut icon" href="favicon.ico">
-    <link rel="apple-touch-icon" href="assets/apple-touch-icon.png" sizes="180x180">
-    <link rel="preconnect" href="https://fonts.googleapis.com">
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600&amp;family=Space+Mono:wght@400;700&amp;display=swap" rel="stylesheet">
-    <link rel="stylesheet" href="assets/site.css">
-    <script src="assets/site.js" defer></script>
-</head>
 <body>
-    <a class="skip-link" href="#main">Skip to content</a>
-
-    <header class="site-header" data-header>
-        <a class="brand" href="#top" aria-label="WPSync home">
-            <svg class="brand-mark" viewBox="0 0 48 48" aria-hidden="true">
-                <path d="M11 6h18l9 9v27H11z" />
-                <path d="M29 6v9h9" />
-                <path d="M17 24h14M17 30h14M17 36h8" />
-            </svg>
-            <span>WP<span>Sync</span></span>
-        </a>
-
-        <button class="nav-toggle" type="button" aria-expanded="false" aria-controls="site-nav" data-nav-toggle>
-            <span></span><span></span>
-            <span class="sr-only">Toggle navigation</span>
-        </button>
-
-        <nav class="site-nav" id="site-nav" aria-label="Primary navigation" data-nav>
-            <a href="#workflow">Workflow</a>
-            <a href="#principles">Safety</a>
-            <a href="#pricing">Licensing &amp; pricing</a>
-            <a class="nav-cta" href="<?= h($repository) ?>">GitHub <span aria-hidden="true">↗</span></a>
-        </nav>
-    </header>
+<?php render_header(); ?>
 
     <main id="main">
         <section class="hero" id="top">
@@ -308,7 +209,7 @@ function h(string $value): string
                         <li>Use by the organizations listed in the license</li>
                         <li>No rights to modify, redistribute, or create works based on WPSync are granted</li>
                     </ul>
-                    <a class="text-link" href="<?= h($repository) ?>/blob/main/LICENSE">Read the free license <span aria-hidden="true">↗</span></a>
+                    <a class="text-link" href="<?= h(REPOSITORY) ?>/blob/main/LICENSE">Read the free license <span aria-hidden="true">↗</span></a>
                 </article>
 
                 <article class="license-card license-card-commercial" aria-labelledby="commercial-title">
@@ -325,15 +226,10 @@ function h(string $value): string
                 </article>
             </div>
 
-            <p class="licensing-note">PolyForm Strict expressly permits use by listed organizations, such as charitable organizations, educational institutions, and government institutions, regardless of funding source or obligations resulting from funding. The <a href="<?= h($repository) ?>/blob/main/LICENSE">full license</a> governs; this summary grants no additional permissions. Unsure which applies? <a href="mailto:emrah@diril.org?subject=WPSync%20licensing%20question">Ask Emrah Diril</a>.</p>
+            <p class="licensing-note">PolyForm Strict expressly permits use by listed organizations, such as charitable organizations, educational institutions, and government institutions, regardless of funding source or obligations resulting from funding. The <a href="<?= h(REPOSITORY) ?>/blob/main/LICENSE">full license</a> governs; this summary grants no additional permissions. Unsure which applies? <a href="mailto:emrah@diril.org?subject=WPSync%20licensing%20question">Ask Emrah Diril</a>.</p>
         </section>
     </main>
 
-    <footer class="site-footer">
-        <a class="brand footer-brand" href="#top"><span>WP<span>Sync</span></span></a>
-        <p>Built for writing in your own editor and publishing to your own blog.</p>
-        <p>© <?= h((string) $year) ?> WPSync contributors // <a href="#pricing">Licensing &amp; pricing</a> // <a href="https://pypi.org/project/wpsync/">Latest release on PyPI ↗</a></p>
-        <p class="footer-note">WordPress is a trademark of the WordPress Foundation. WPSync is an independent project, not affiliated with or endorsed by the WordPress Foundation or Automattic.</p>
-    </footer>
+<?php render_footer(); ?>
 </body>
 </html>

@@ -87,8 +87,7 @@ if ($path === '/blog') {
             ?>
         <section class="section blog-index">
             <div class="section-heading">
-                <p class="eyebrow">BLOG</p>
-                <h2>Notes from the folder.</h2>
+                <h2>Blog</h2>
             </div>
             <ol class="post-list">
 <?php foreach ($posts as $post): ?>

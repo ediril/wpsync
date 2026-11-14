@@ -128,7 +128,9 @@ comments, and anything else only the blog held are gone.
 
 ## Rationale
 
-The profile model matches HLSync so the two tools behave alike. Checksums and a
+The profile model matches HLSync so the two tools behave alike. `init`
+creates a profile where HLSync uses `create`, because `wpsync create` starts
+a new post. Checksums and a
 fingerprint recorded at each sync tell WPSync which side changed without
 comparing clocks, which HLSync needs only because FTP cannot read remote
 content cheaply. Storing checksums instead of copies keeps the database small;

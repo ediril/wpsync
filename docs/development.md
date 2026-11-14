@@ -48,6 +48,10 @@ index. Without it, uv may reinstall an older release right after you publish.
 ## Project layout
 
 The PyPI distribution, installed command, and Python package are all `wpsync`.
+The name belonged to an earlier PyPI project, which its owner deleted so
+WPSync could take it. Until the first upload claims the name, the `rename`
+branch keeps the project as BPSync (Blog Post Sync) in case it cannot be
+claimed.
 See [`TODO.md`](../TODO.md) for the ordered work queue and
 [`CHANGELOG.md`](../CHANGELOG.md) for completed changes.
 [`decisions/`](../decisions/) holds substantial architectural choices and their
@@ -67,7 +71,9 @@ Releases use `<major>.<work-day>.<increment>` without leading zeroes. Versions
 advance from a starting version using Git history, not the build date:
 
 - [`version.json`](../version.json) gives the version of the history's root
-  commit, `1.0.1`.
+  commit, `1.0.1`. PyPI never reuses a deleted project's file names, and the
+  earlier `wpsync` published `1.0.0` and `1.0.1`, so released versions start
+  at `1.1`.
 - Each later date with commits advances the work-day number by one, regardless
   of how many idle days pass.
 - On the root commit's date, the increment advances from its starting value for

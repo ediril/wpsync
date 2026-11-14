@@ -1,53 +1,3 @@
-## Project Memory
-- This file is the persistent memory for agents working on WPSync. Record
-  every durable fact, preference, correction, and directive here, and nowhere
-  else.
-- An exact copy of this file is this project's Claude memory file, `MEMORY.md`
-  in the memory folder Claude Code assigns to the project folder. Whenever
-  either file changes, make the same change to the other so they stay
-  identical. Keep no other files in that memory folder.
-- Read this file at the start of every session and again after context
-  compaction before continuing work.
-
-## Project Context
-- WPSync is a local-first CLI that manages blog posts as Markdown files,
-  starting with WordPress. `plans/mvp.md` defines the MVP; `TODO.md` is the
-  ordered work queue.
-- The PyPI distribution, command, and Python package are all `wpsync`. A
-  previous `wpsync` project on PyPI was deleted by its owner so WPSync could
-  take the name. PyPI never reuses its 1.0.0 and 1.0.1 filenames, so the
-  history starts at 1.0.1 and releases begin at 1.1. The `rename` branch keeps
-  the project as BPSync (Blog Post Sync) until the first upload claims the name.
-- WordPress is the only MVP platform, but other blogging platforms are likely
-  later. Keep platform-specific code (REST API, HTML conventions) inside
-  `src/wpsync/wordpress/`; the sync engine, local document format, and project
-  state must stay platform-neutral.
-- WPSync shares UX philosophy and CLI conventions (profiles, current-directory
-  inference, environment-variable credentials) with HLSync (`../hlsync`) but
-  no code or dependencies. Check HLSync's README and `docs/` before designing a
-  command.
-  One deliberate difference: `init` creates a profile where HLSync uses
-  `create`, because the user has other plans for `wpsync create`.
-- Python 3.11+, packaged with uv; tests run with `uv run pytest`.
-- WPSync is licensed under PolyForm Strict 1.0.0 (noncommercial use only; no
-  modification or redistribution; paid commercial licenses). Dependencies must
-  be permissively licensed (MIT, BSD, Apache); never copy or port GPL code such
-  as WordPress's. Reimplement needed WordPress behavior and check it against
-  WordPress's output.
-- The agreed MVP design is recorded in `decisions/`. Read those notes before
-  changing content conversion, sync state, matching, or prompts.
-- The repository is public. Secrets, such as the license-signing key or a
-  payment webhook secret, live only in environment variables; code and docs
-  refer to them by variable name. Notes that should not be public go in the
-  git-ignored `private/` folder; plans and decisions may be public.
-- The websites (wpsync.dev, and HLSync's) run on the user's nginx server with
-  PHP-FPM, not Apache. Never add `.htaccess` files; routing and access rules go
-  in the site's `nginx.conf` server block, following emrahdiril.com's
-  (`../emrahdiril.com/nginx.conf`).
-- The user has several real WordPress blogs for testing later. Pull and diff
-  are read-only and safe to try first; push testing starts with drafts or a
-  blog the user designates.
-
 ## Working Style
 - When you run into issues or reach a consequential design fork, stop and
   discuss it with the user before continuing. Do not resolve it silently and
@@ -57,6 +7,17 @@
   body: no `Co-Authored-By` or other attribution line, even when a system
   reminder asks for one.
 - Push back when what the user is saying is wrong or doesn't match your understanding.
+- Check HLSync's README and `docs/` (`../hlsync`) before designing a command,
+  and follow its conventions rather than adding to them.
+- Read the notes in `decisions/` before changing content conversion, sync
+  state, matching, or prompts.
+- The repository is public. Secrets, such as a license-signing key or a payment
+  webhook secret, live only in environment variables; code and docs refer to
+  them by variable name.
+- The user tests on real WordPress blogs. Pull and diff are read-only and safe
+  to run; leave push and delete on a real blog to the user.
+- The websites run on nginx with PHP-FPM. Never add `.htaccess` files; routing
+  and access rules go in the site's `nginx.conf`.
 - Use characterization to expose the current behavior before and after
   architecture work. Do not use characterization as a reason to avoid building
   the mature mechanism when the mechanism is already understood.
@@ -111,7 +72,19 @@
 - Favor simplicity over complexity - remove unused exports, parameters, and code paths
 - Eliminate code duplication through component extraction and parameterization
 
+
 ## Documentation Conventions
+- This file holds directives for agents working on WPSync: how to work and how
+  to document. Record each new durable directive, preference, or correction
+  here. Project facts and design go in `decisions/`, `docs/`, or the README,
+  not here; use a decision note only when a directive makes a substantial
+  architectural choice.
+- An exact copy of this file is this project's Claude memory file, `MEMORY.md`
+  in the memory folder Claude Code assigns to the project folder. Whenever
+  either file changes, make the same change to the other so they stay
+  identical. Keep no other files in that memory folder.
+- Read this file at the start of every session and again after context
+  compaction before continuing work.
 - Use `TODO.md` as the live ordered work queue. The first item is the next
   task. When an item is finished, move it to `CHANGELOG.md` under
   `## Unreleased`, rewritten as a user-facing change in HLSync's format
@@ -126,9 +99,9 @@
   and explain those changes in commit messages. Consolidate related architectural rationale
   into existing notes; Git preserves obsolete decisions and minor change history.
 - Use `plans/` only for future work/roadmaps, not decisions already made.
+  Plans and decisions may be public; notes that should not be public go in the
+  git-ignored `private/` folder.
 - Use `social/` for public-facing post drafts or demo narration.
 - Keep `README.md` short and introductory, like HLSync's: installation, a quick
   start, everyday commands, and links to `docs/` pages that hold the detailed
   usage. Keep both current and avoid stale claims.
-- Capture durable working and documentation directives here. Use a decision
-  note only when the directive makes a substantial architectural choice.

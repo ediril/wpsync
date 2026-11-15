@@ -108,8 +108,8 @@ render_head([
 
         <section class="section workflow" id="workflow">
             <div class="section-heading">
-                <p class="eyebrow">01 // THE LOOP</p>
-                <h2>Pull it. Write it. Push it.</h2>
+                <p class="eyebrow">Workflow</p>
+                <h2>Pull it. Write it.<br>Push it.</h2>
                 <p>WPSync maps a folder to your blog, keeps every post as a Markdown file, and shows what will change before anything reaches WordPress.</p>
             </div>
 
@@ -146,11 +146,9 @@ render_head([
         </section>
 
         <section class="section principles" id="principles">
-            <div class="section-heading split-heading">
-                <div>
-                    <p class="eyebrow">02 // DESIGN SIGNAL</p>
-                    <h2>Write anywhere.<br>Publish on purpose.</h2>
-                </div>
+            <div class="section-heading wide-heading">
+                <p class="eyebrow">Safety</p>
+                <h2>Write anywhere.<br>Publish on purpose.</h2>
                 <p>WordPress stays responsible for your theme, comments, and public addresses. WPSync adds a local copy you control and a preview of every change.</p>
             </div>
 
@@ -192,8 +190,8 @@ render_head([
         </section>
 
         <section class="section pricing" id="pricing" aria-labelledby="pricing-title">
-            <div class="section-heading">
-                <p class="eyebrow">03 // LICENSING &amp; PRICING</p>
+            <div class="section-heading wide-heading">
+                <p class="eyebrow">Pricing</p>
                 <h2 id="pricing-title">Use under PolyForm Strict.<br>Commercial licensing available.</h2>
                 <p>PolyForm Strict 1.0.0 defines the uses available at no charge. Commercial use outside those permissions requires a separate paid agreement.</p>
             </div>

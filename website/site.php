@@ -68,7 +68,7 @@ function render_head(array $page): void
     <meta name="theme-color" content="#080b10">
     <meta name="description" content="<?= h($page['description']) ?>">
     <meta name="robots" content="index, follow, max-image-preview:large">
-    <meta name="author" content="WPSync contributors">
+    <meta name="author" content="Emrah Diril">
     <meta property="og:type" content="<?= h($page['type']) ?>">
     <meta property="og:locale" content="en_US">
     <meta property="og:site_name" content="WPSync">
@@ -132,8 +132,9 @@ function render_header(): void
         <nav class="site-nav" id="site-nav" aria-label="Primary navigation" data-nav>
             <a href="/#workflow">Workflow</a>
             <a href="/#principles">Safety</a>
-            <a href="/#pricing">Licensing &amp; pricing</a>
+            <a href="/#pricing">Pricing</a>
             <a href="/blog/">Blog</a>
+            <a href="https://pypi.org/project/wpsync/">PyPI <span aria-hidden="true">↗</span></a>
             <a class="nav-cta" href="<?= h(REPOSITORY) ?>">GitHub <span aria-hidden="true">↗</span></a>
         </nav>
     </header>
@@ -144,9 +145,7 @@ function render_footer(): void
 {
     ?>
     <footer class="site-footer">
-        <a class="brand footer-brand" href="/"><span>WP<span>Sync</span></span></a>
-        <p>Built for writing in your own editor and publishing to your own blog.</p>
-        <p>© <?= h(date('Y')) ?> WPSync contributors // <a href="/#pricing">Licensing &amp; pricing</a> // <a href="https://pypi.org/project/wpsync/">Latest release on PyPI ↗</a></p>
+        <p>© <?= h(date('Y')) ?> Emrah Diril</p>
         <p class="footer-note">WordPress is a trademark of the WordPress Foundation. WPSync is an independent project, not affiliated with or endorsed by the WordPress Foundation or Automattic.</p>
     </footer>
 <?php

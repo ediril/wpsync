@@ -13,6 +13,12 @@ fi
 if command -v lsof >/dev/null && taken=$(lsof -nP -iTCP:"$port" -sTCP:LISTEN); then
   echo "Port $port is taken (pick another: $0 8008):" >&2
   echo "$taken" >&2
+
+  while IFS= read -r pid; do
+    cwd=$(lsof -a -p "$pid" -d cwd -Fn 2>/dev/null | sed -n 's/^n//p')
+    printf '  PID %s working directory: %s\n' "$pid" "${cwd:-unavailable}" >&2
+  done < <(printf '%s\n' "$taken" | awk 'NR > 1 && !seen[$2]++ { print $2 }')
+
   exit 1
 fi
 

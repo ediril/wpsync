@@ -326,6 +326,21 @@ def test_an_embedded_page_gone_from_the_uploads_counts_as_an_issue(tmp_path, sto
     assert output.splitlines()[-1] == "Issues:     -"
 
 
+def test_a_post_pull_cannot_place_fails_the_pull_but_not_the_others(tmp_path, store):
+    wordpress = FakeWordPress(post_count=2)
+    add_profile(store, "myblog", tmp_path)
+    for name in ("a.md", "b.md"):
+        write_document(
+            tmp_path / "content" / name, Document(None, Post(title="", slug="post-1"))
+        )
+
+    status, _, errors = pull(store, wordpress)
+
+    assert status == 1
+    assert "same slug as several local files" in errors
+    assert (tmp_path / "content/post-2.md").exists()
+
+
 def test_a_failed_download_stops_the_pull_without_leaving_part_of_a_post(
     tmp_path, store
 ):

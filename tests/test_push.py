@@ -154,8 +154,9 @@ def test_a_new_file_with_a_taken_slug_never_touches_the_post_even_with_yes(
     )
 
     for flags in ([], ["-y"]):
-        _, output, errors = run(store, wordpress, "push", *flags)
+        status, output, errors = run(store, wordpress, "push", *flags)
 
+        assert status == 1
         assert screen(output, errors) == [
             "  failed  mine.md: slug 'post-1' belongs to #1 'Post 1'",
             "  Nothing to push; 1 skipped.",
@@ -169,7 +170,8 @@ def test_a_shared_title_needs_a_yes_before_creating_a_duplicate(tmp_path, store)
     add_profile(store, "myblog", tmp_path)
     write_post(tmp_path, "mine.md", "title: Post 1\nslug: other\nstatus: public\n")
 
-    _, output, errors = run(store, wordpress, "push")
+    status, output, errors = run(store, wordpress, "push")
+    assert status == 0
     assert "  ? mine.md" in errors.splitlines()
     assert wordpress.saved == []
 

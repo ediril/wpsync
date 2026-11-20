@@ -78,6 +78,8 @@
   title such as `"Working with AI"` gives the slug and file `working-with-ai`,
   and a slug such as `something-like-this` gives the title "Something like
   this". `-t` and `-s` still set a different title or slug.
+- `push` and `pull` exit with status 1 when any post failed, as HLSync does,
+  after finishing the other posts. A declined question is not a failure.
 - Push never updates a post whose slug a new file shares, even with `--yes`; it
   reports the file as failed. `pull` links a file to its post instead.
 - A post's `date` can be just a day, `2026-11-10`, or a day and time,

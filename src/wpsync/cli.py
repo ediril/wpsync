@@ -10,6 +10,7 @@ import time
 import unicodedata
 from collections import Counter
 from collections.abc import Callable, Mapping, Sequence
+from dataclasses import dataclass
 from datetime import UTC, datetime
 from pathlib import Path, PurePosixPath
 from typing import TextIO
@@ -1281,7 +1282,15 @@ class _Progress:
         return ask
 
 
-def _pull(arguments: argparse.Namespace, session: _Session) -> str:
+@dataclass(frozen=True)
+class _Transferred:
+    """What push or pull prints, and whether a post failed, which exits 1."""
+
+    summary: str
+    failed: bool
+
+
+def _pull(arguments: argparse.Namespace, session: _Session) -> _Transferred:
     profile, base = _profile_root(arguments, session)
     root = profile.local_root
     yes = arguments.yes
@@ -1331,7 +1340,7 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> str:
     summary = result.summary()
     if result.declined and not yes:
         summary += " Rerun with --yes to accept the skipped changes."
-    return summary
+    return _Transferred(summary, failed=result.failed > 0)
 
 
 def _follow_files(
@@ -1349,7 +1358,7 @@ def _follow_files(
     )
 
 
-def _push(arguments: argparse.Namespace, session: _Session) -> str:
+def _push(arguments: argparse.Namespace, session: _Session) -> _Transferred:
     profile, base = _profile_root(arguments, session)
     root = profile.local_root
     documents = scan_documents(root)
@@ -1405,7 +1414,8 @@ def _push(arguments: argparse.Namespace, session: _Session) -> str:
     summary = result.summary()
     if result.declined and not arguments.yes:
         summary += " Rerun with --yes to accept the skipped changes."
-    return "\n".join([summary, *(f"Note: {note}" for note in result.notes)])
+    notes = [f"Note: {note}" for note in result.notes]
+    return _Transferred("\n".join([summary, *notes]), failed=result.failed > 0)
 
 
 HANDLERS = {
@@ -1471,6 +1481,9 @@ def run(
     ) as error:
         print(f"wpsync: error: {error}", file=stderr)
         return 1
+    if isinstance(message, _Transferred):
+        print(message.summary, file=stdout)
+        return 1 if message.failed else 0
     print(message, file=stdout)
     return 0
 

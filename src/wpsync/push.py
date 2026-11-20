@@ -68,6 +68,11 @@ class PushResult:
     notes: list[str] = field(default_factory=list)
     """What WordPress did differently from what was sent."""
 
+    @property
+    def failed(self) -> int:
+        """Skipped posts that could not be sent, as opposed to declined ones."""
+        return self.skipped - self.declined
+
     def summary(self) -> str:
         skipped = f"; {self.skipped} skipped" if self.skipped else ""
         if not self.changes:

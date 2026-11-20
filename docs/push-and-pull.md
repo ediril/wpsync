@@ -47,7 +47,9 @@ Deleted on WordPress, local files kept:
 ```
 
 A post that cannot be pulled at all shows as `failed`, with the reason, and
-the posts deleted on one side are listed after the summary.
+the posts deleted on one side are listed after the summary. Pull carries on
+with the other posts, then exits with status 1 if any post failed; a post you
+declined does not count as failed.
 
 Pull never loses local work:
 
@@ -101,7 +103,8 @@ error and the summary to standard output; the bar appears only on a terminal.
 Push prints each file it changes on the blog, as HLSync does: `+` for a new
 post or uploaded image, `~` for an updated post, `-` for a deleted one, and `?`
 for a post it skipped after a question. A post it cannot send at all shows as
-`failed`, with the reason. Notes after the summary report what WordPress did
+`failed`, with the reason; push carries on with the other posts, then exits
+with status 1, as pull does. Notes after the summary report what WordPress did
 differently from what was sent.
 
 - A public file without an `id` creates a post. Push then writes the post's `id`,

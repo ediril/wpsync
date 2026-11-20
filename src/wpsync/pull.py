@@ -59,6 +59,11 @@ class PullResult:
     deleted_locally: list[str] = field(default_factory=list)
     deleted_remotely: list[str] = field(default_factory=list)
 
+    @property
+    def failed(self) -> int:
+        """Skipped posts that could not be pulled, as opposed to declined ones."""
+        return self.skipped - self.declined
+
     def summary(self) -> str:
         tail = ""
         if self.missing_files:

@@ -49,9 +49,7 @@ index. Without it, uv may reinstall an older release right after you publish.
 
 The PyPI distribution, installed command, and Python package are all `wpsync`.
 The name belonged to an earlier PyPI project, which its owner deleted so
-WPSync could take it. Until the first upload claims the name, the `rename`
-branch keeps the project as BPSync (Blog Post Sync) in case it cannot be
-claimed.
+WPSync could take it.
 See [`TODO.md`](../TODO.md) for the ordered work queue and
 [`CHANGELOG.md`](../CHANGELOG.md) for completed changes.
 [`decisions/`](../decisions/) holds substantial architectural choices and their

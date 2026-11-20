@@ -348,14 +348,18 @@ def build_parser() -> argparse.ArgumentParser:
         "file",
         nargs="?",
         metavar="FILE",
-        help="file name under content/; the date and time when omitted",
+        help=(
+            'a title, such as "Working with AI", or a slug, such as '
+            "working-with-ai; makes the title, slug, and file name under content/. "
+            "Without it, an untitled post named from the date and time"
+        ),
     )
-    create.add_argument("-t", "--title", default="", help="the post's title")
+    create.add_argument("-t", "--title", default="", help="a different title")
     create.add_argument(
         "-o", "--open", action="store_true", help="open the new file in your editor"
     )
     create.add_argument(
-        "-s", "--slug", help="the post's address; WordPress assigns one when omitted"
+        "-s", "--slug", help="a different slug, the post's address on the blog"
     )
 
     ls = subparsers.add_parser(
@@ -750,7 +754,12 @@ def _profile_root(
 def _create(arguments: argparse.Namespace, session: _Session) -> str:
     profile, _ = _profile_root(arguments, session)
     root = profile.local_root
-    slug = arguments.slug or ""
+    title, slug = arguments.title, arguments.slug or ""
+    if arguments.file is None:
+        relative = _timestamp_file(root, datetime.now())
+    else:
+        relative, named_title, named_slug = _named_post(arguments.file)
+        title, slug = title or named_title, slug or named_slug
     if slug:
         users = [
             item.path
@@ -759,14 +768,10 @@ def _create(arguments: argparse.Namespace, session: _Session) -> str:
         ]
         if users:
             raise SelectionError(f"slug '{slug}' is used by {users[0]}")
-    if arguments.file is None:
-        relative = _timestamp_file(root, datetime.now())
-    else:
-        relative = _new_file(arguments.file)
     path = root / relative
     if path.exists():
         raise SelectionError(f"{relative} already exists")
-    write_document(path, Document(None, Post(title=arguments.title, slug=slug)))
+    write_document(path, Document(None, Post(title=title, slug=slug)))
     created = f"Created {relative} (private; set status: public to publish it)."
     if arguments.open:
         return f"{created}\n{_open_file(session, root, relative)}"
@@ -783,15 +788,25 @@ def _timestamp_file(root: Path, now: datetime) -> PurePosixPath:
     raise SelectionError(f"too many posts named {stem} in {CONTENT_DIR}/")
 
 
-def _new_file(name: str) -> PurePosixPath:
-    """A file under the posts folder from a chosen name."""
-    stem = name.removesuffix(".md")
-    if "/" not in stem:
-        stem = re.sub(r"[^\w.-]+", "-", stem.casefold()).strip("-.")
-    relative = PurePosixPath(CONTENT_DIR, f"{stem}.md")
-    if not stem or ".." in relative.parts or PurePosixPath(stem).is_absolute():
+def _named_post(name: str) -> tuple[PurePosixPath, str, str]:
+    """A new post's file, title, and slug from the name given to create.
+
+    A name already in slug form is the file name and slug, and its words make the
+    title; any other name is the title, and its slug names the file.
+    """
+    folder, _, last = name.removesuffix(".md").rpartition("/")
+    slug = _slugify(last)
+    title = last.replace("-", " ").capitalize() if slug == last else last
+    if not slug or ".." in folder.split("/") or folder.startswith("/"):
         raise SelectionError(f"'{name}' does not make a file name")
-    return relative
+    return PurePosixPath(CONTENT_DIR, folder, f"{slug}.md"), title, slug
+
+
+def _slugify(text: str) -> str:
+    """Lowercase words joined by hyphens, accents dropped, as blogs make slugs."""
+    decomposed = unicodedata.normalize("NFKD", text)
+    plain = "".join(c for c in decomposed if not unicodedata.combining(c))
+    return re.sub(r"\W+", "-", plain.casefold()).strip("-")
 
 
 def _ls(arguments: argparse.Namespace, session: _Session) -> str:

@@ -101,15 +101,18 @@ Markdown images, `![alt](path)`, and sends `![[photo.png]]` as plain text.
 
 ## Starting a post
 
-`create` starts a post file under `content/`. The file name, title, and slug
-can all wait:
+`create` starts a post file under `content/`. Give it a title or a slug, and
+it makes the other, with the slug as the file name. A name in lowercase with
+hyphens is a slug; anything else is a title. Without a name, the post starts
+untitled, for a short piece, and is named from the date and time:
 
 ```console
-wpsync create                                  # content/2026-11-10-1432.md, from the time
-wpsync create idea                             # content/idea.md
-wpsync create drafts/hello -t "Hello, World!"  # content/drafts/hello.md, with a title
-wpsync create hello -s hello-again             # choose the slug
-wpsync create -o                               # and open it in your editor
+wpsync create "Working with AI"      # title "Working with AI", slug and file working-with-ai
+wpsync create something-like-this    # title "Something like this", slug and file something-like-this
+wpsync create "drafts/Hello, World!" # content/drafts/hello-world.md
+wpsync create                        # content/2026-11-10-1432.md, untitled
+wpsync create hello -t "Hi there"    # a different title (-t) or slug (-s)
+wpsync create -o                     # and open it in your editor
 ```
 
 ```markdown

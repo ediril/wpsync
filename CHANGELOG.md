@@ -58,9 +58,9 @@
 - `push [ID|SLUG]` creates and updates posts from changed files, sending only the
   content or the header fields that changed. It writes what WordPress assigned
   back into new files, uploads local images, turns a published post made private
-  into a draft, and asks before replacing a matched or remotely changed post,
-  duplicating a title, converting a block post, or creating terms. It skips a
-  post without a title.
+  into a draft, and asks before replacing a remotely changed post or one this
+  folder never synced, duplicating a title, converting a block post, or
+  creating terms.
 - `scripts/publish.sh [--prepare]` builds, checks, and publishes releases to
   PyPI.
 - `delete ID|SLUG` deletes a post from the blog, with the library images no
@@ -74,6 +74,12 @@
 
 ### Changed
 
+- `create NAME` makes a post's title, slug, and file name from one name: a
+  title such as `"Working with AI"` gives the slug and file `working-with-ai`,
+  and a slug such as `something-like-this` gives the title "Something like
+  this". `-t` and `-s` still set a different title or slug.
+- Push never updates a post whose slug a new file shares, even with `--yes`; it
+  reports the file as failed. `pull` links a file to its post instead.
 - A post's `date` can be just a day, `2026-11-10`, or a day and time,
   `2026-11-10 09:30`, in your computer's time zone. WPSync writes dates in
   that local form, leaving off a midnight time and zero seconds.

@@ -122,10 +122,15 @@ differently from what was sent.
   `wpsync diff -p`. To choose one deleted file's post, use its ID:
   `wpsync push -p 123`.
 
+A new file whose slug belongs to a post on the blog is never pushed, even with
+`--yes`: push reports it as failed and leaves the post alone. Change the file's
+`slug:`. If the post really is the file's, for example because a push stopped
+before writing the `id` into the file, run `wpsync pull` to link them.
+
 Push asks first, defaulting to no, before it would:
 
-- replace a post that has the same slug as a new file, or one this folder never
-  synced. Declining creates nothing, since WordPress would change the slug.
+- replace a post whose `id` the file names but this folder never synced, such
+  as a file copied from elsewhere.
 - create a second post with the same title.
 - replace a post that also changed on WordPress.
 - delete a post that changed on WordPress since the last sync.

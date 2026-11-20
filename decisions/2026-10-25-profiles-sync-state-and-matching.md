@@ -71,9 +71,10 @@ new post with a taken slug a different slug (`hello-world-2`). Only an update,
 which names a post ID, changes an existing post. A file without a post ID is
 checked against remote posts at push time:
 
-- Its slug belongs to a post: ask whether to update that post, naming it.
-  Declining stops; push does not create a post whose slug WordPress would
-  change.
+- Its slug belongs to a post: report the file as failed, even with `--yes`.
+  A new file never replaces another post, and push does not create a post
+  whose slug WordPress would change. A clash means the file's slug is wrong;
+  when the post really is the file's, `pull` links them.
 - Only its title matches one or more posts: ask whether to create another post
   with the same title. Titles need not be unique.
 - Nothing matches: create a new post.
@@ -88,8 +89,9 @@ push.
 
 `diff` and `push` share one plan: comparing a post produces both the line `diff`
 shows and the step `push` performs, including any question to ask. A push that
-stops between saving a post and recording it is safe to repeat, because the next
-push finds the post by its slug or title and asks. A body that push did not send,
+stops between saving a post and recording it never overwrites anything when
+repeated: the next push reports the slug clash, or asks before duplicating a
+title, and `pull` links the file to the post. A body that push did not send,
 as when unpublishing, keeps its old checksum, so it is sent when the post is next
 made public.
 

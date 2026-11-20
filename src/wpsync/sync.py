@@ -483,22 +483,17 @@ def _update_step(
 def _new_entry(document: LocalDocument, summaries: Sequence[PostSummary]) -> DiffEntry:
     path = PurePosixPath(document.path)
     match = match_post(document.document.post, summaries)
-    if match.candidates:
-        listed = ", ".join(f"#{post.id} {post.title!r}" for post in match.candidates)
+    owners = match.candidates or ((match.post,) if match.post else ())
+    if owners:
+        # A new post never takes over another post's slug; the file is wrong.
+        listed = ", ".join(f"#{post.id} {post.title!r}" for post in owners)
         return DiffEntry(
             Action.CONFLICT,
             "l",
             None,
             path,
-            reason=f"same slug as several posts: {listed}",
+            reason=f"slug '{document.document.post.slug}' belongs to {listed}",
         )
-    if match.post is not None:
-        question = (
-            f"{path} has the same slug as #{match.post.id} {match.post.title!r}. "
-            "Replace that post with your file?"
-        )
-        step = PushStep(document, target=match.post.id, question=question)
-        return DiffEntry(Action.CONFLICT, "l", None, path, step)
     question = None
     if match.same_title:
         listed = ", ".join(f"#{p.id}" for p in match.same_title)

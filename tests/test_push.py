@@ -123,6 +123,14 @@ def test_create_takes_a_title_and_slug_and_never_overwrites(tmp_path, store):
     text = (tmp_path / "content/notes/a.md").read_text()
     assert "title: Long title\nslug: short\n" in text
 
+    for name, file, title in (
+        ("Working with AI", "working-with-ai", "Working with AI"),
+        ("something-like-this", "something-like-this", "Something like this"),
+    ):
+        invoke(["myblog", "create", name], store, password=None)
+        text = (tmp_path / f"content/{file}.md").read_text()
+        assert f"title: {title}\nslug: {file}\n" in text, name
+
     for arguments, message in (
         (["other", "-s", "short"], "slug 'short' is used by content/notes/a.md"),
         (["notes/a.md"], "content/notes/a.md already exists"),
@@ -136,7 +144,7 @@ def test_create_takes_a_title_and_slug_and_never_overwrites(tmp_path, store):
         assert message in errors
 
 
-def test_a_new_file_with_a_taken_slug_is_never_created_and_updates_only_on_yes(
+def test_a_new_file_with_a_taken_slug_never_touches_the_post_even_with_yes(
     tmp_path, store
 ):
     wordpress = FakeWordPress(post_count=2)
@@ -145,22 +153,15 @@ def test_a_new_file_with_a_taken_slug_is_never_created_and_updates_only_on_yes(
         tmp_path, "mine.md", "title: Mine\nslug: post-1\nstatus: public\n"
     )
 
-    status, output, errors = run(store, wordpress, "push")
+    for flags in ([], ["-y"]):
+        _, output, errors = run(store, wordpress, "push", *flags)
 
-    assert status == 0
-    assert screen(output, errors) == [
-        "  ? mine.md",
-        "  Nothing to push; 1 skipped. Rerun with --yes to accept the skipped changes.",
-    ]
-    assert wordpress.saved == []
-    assert "id:" not in path.read_text()
-
-    _, output, errors = run(store, wordpress, "push", "-y")
-
-    assert "  ~ mine.md" in errors.splitlines()
-    assert len(wordpress.posts) == 2
-    assert wordpress.post(1)["content"]["raw"] == "<p>Text.</p>"
-    assert path.read_text().startswith("---\nid: 1\n")
+        assert screen(output, errors) == [
+            "  failed  mine.md: slug 'post-1' belongs to #1 'Post 1'",
+            "  Nothing to push; 1 skipped.",
+        ]
+        assert wordpress.saved == []
+        assert "id:" not in path.read_text()
 
 
 def test_a_shared_title_needs_a_yes_before_creating_a_duplicate(tmp_path, store):

@@ -23,10 +23,9 @@
   to run; leave push and delete on a real blog to the user.
 - Do not start, stop, or otherwise manage the user's local servers.
 - Do a single line of work yourself, in the main checkout, where the user can
-  see it; delegate only independent work that runs in parallel, even when a
-  skill or playbook says delegation is mandatory. The user cannot see what a
-  subagent does. Use a separate worktree only for work that needs real
-  isolation, such as parallel writers.
+  see it; delegate only independent work that runs in parallel. The user
+  cannot see what a subagent does. Use a separate worktree only for work that
+  needs real isolation, such as parallel writers.
 - Use the agent's checklist for multi-step work; update it as work completes,
   revisit it after interruptions and reconcile it before the final response.
   Use `TASK.md` only when persistence is genuinely needed or requested.
@@ -138,7 +137,8 @@
   or control flow. Fix what is behavior- and architecture-preserving; record
   questionable mechanisms for discussion rather than changing them during
   cleanup. This review is the agent's own; do not spawn a reviewer for it. A
-  thorough review uses the `interrogate` skill.
+  multi-model review is `/emd:interrogate`, run only when the user asks for
+  it.
 - A class or module over 1,000 lines is a prompt to evaluate it, not a limit: if
   it is legitimate, with no major code smell or tech debt, it stays and can keep
   growing.

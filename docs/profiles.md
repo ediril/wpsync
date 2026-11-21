@@ -47,6 +47,7 @@ wpsync myblog pull       # the same, from any directory
 wpsync profiles          # list profiles; * marks the current one
 wpsync profile --details # show the current profile's settings
 wpsync root myblog       # print the profile's folder
+wpsync cd myblog         # change to it (after a one-time wpsync setup)
 wpsync map --local-root /new/folder   # move the profile to another folder
 wpsync remove myblog     # remove the profile only
 ```
@@ -54,3 +55,18 @@ wpsync remove myblog     # remove the profile only
 `map` asks for confirmation and only changes the local folder. A different
 blog needs its own profile, because synchronization state belongs to one blog.
 `remove` deletes only the profile; local files and the blog stay unchanged.
+
+To switch to a profile's folder, run `wpsync setup` once. It adds a small
+`wpsync` shell function to `~/.zshrc` or `~/.bashrc`, chosen from `$SHELL`.
+Open a new terminal, and then:
+
+```console
+wpsync cd myblog   # change to the myblog profile's folder
+wpsync cd          # back to the current profile's folder from a subfolder
+```
+
+A program cannot change its shell's directory, so `cd` needs that function;
+without it, `wpsync cd` explains how to run `setup`. The function only handles
+`wpsync cd`; every other command runs `wpsync` unchanged. Running `setup` again
+updates the function in place, and a symlinked startup file stays a symlink.
+Without setup, `cd "$(wpsync root myblog)"` also works.

@@ -5,6 +5,7 @@ from __future__ import annotations
 import difflib
 from collections.abc import Sequence
 from dataclasses import dataclass, replace
+from datetime import datetime
 from enum import StrEnum
 from pathlib import Path, PurePosixPath
 from typing import Generic, Protocol, TypeVar
@@ -15,6 +16,7 @@ from wpsync.documents import (
     LocalDocument,
     body_checksum,
     fields_checksum,
+    format_date,
 )
 from wpsync.markup.markdown import image_sources
 from wpsync.media import file_checksum, image_path, post_images
@@ -151,6 +153,8 @@ class Action(StrEnum):
     UNCHANGED = "="
     PRIVATE = "x"
     """Excluded: push skips a private post."""
+    SCHEDULED = "s"
+    """Excluded: push holds a public post until its date."""
     KEPT = " "
     """Deleted locally, but push keeps the post without -p."""
 
@@ -198,7 +202,8 @@ class DiffEntry:
     step: PushStep | DeleteStep | None = None
     """None when a push leaves the post alone."""
     reason: str = ""
-    """Why push cannot send a conflicting post it has no question for."""
+    """Why push does not send the post: a conflict it has no question for, or
+    the date a scheduled post waits for."""
     images: tuple[ImageUpload, ...] = ()
     """The images the post shows that push uploads with it."""
 
@@ -246,13 +251,16 @@ def compare(
     *,
     root: Path,
     media: list[MediaRecord],
+    now: datetime,
     prune: bool = False,
 ) -> Diff:
     """Classify the selected posts, contacting the remote only when needed.
 
-    The images the sent posts show are listed too: a new or replaced image is
-    uploaded, so a post that shows one changes even if its file did not. With
-    prune, a post whose file was deleted is deleted from the blog.
+    A public post dated after now is held, so it reaches the blog with the
+    first push on or after its date. The images the sent posts show are listed
+    too: a new or replaced image is uploaded, so a post that shows one changes
+    even if its file did not. With prune, a post whose file was deleted is
+    deleted from the blog.
     """
     entries: list[DiffEntry] = []
     changed: dict[str, tuple[LocalDocument, list[str]]] = {}
@@ -268,6 +276,18 @@ def compare(
         if post_id is not None:
             present.add(post_id)
         record = selection.records.get(post_id) if post_id else None
+        date = document.document.post.date
+        if not private and date is not None and date > now:
+            entries.append(
+                DiffEntry(
+                    Action.SCHEDULED,
+                    "" if record else "l",
+                    post_id,
+                    path,
+                    reason=f"waits until {format_date(date)}",
+                )
+            )
+            continue
         if private and record is None:
             entries.append(DiffEntry(Action.PRIVATE, "l", post_id, path))
             continue

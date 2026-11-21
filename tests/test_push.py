@@ -1,4 +1,5 @@
 import re
+from datetime import UTC, datetime, timedelta
 
 from wordpress_fake import FakeWordPress, add_profile, invoke, screen
 
@@ -163,6 +164,33 @@ def test_a_new_file_with_a_taken_slug_never_touches_the_post_even_with_yes(
         ]
         assert wordpress.saved == []
         assert "id:" not in path.read_text()
+
+
+def test_a_public_post_dated_later_waits_for_its_date(tmp_path, store):
+    wordpress = FakeWordPress(post_count=2)
+    add_profile(store, "myblog", tmp_path)
+    later = (datetime.now() + timedelta(days=1)).replace(second=0, microsecond=0)
+    header = f"title: Soon\nstatus: public\ndate: {later:%Y-%m-%d %H:%M}\n"
+    path = write_post(tmp_path, "soon.md", header)
+
+    status, output, errors = run(store, wordpress, "push")
+
+    assert status == 0
+    assert f"Note: soon.md waits until {later:%Y-%m-%d %H:%M}." in errors
+    assert output == "  Nothing to push.\n"
+    assert wordpress.saved == []
+    assert run(store, wordpress, "diff")[1] == (
+        "No local changes.\nNot shown: 1 scheduled (try using -x)\n"
+    )
+
+    earlier = later - timedelta(days=2)
+    path.write_text(
+        path.read_text().replace(f"{later:%Y-%m-%d}", f"{earlier:%Y-%m-%d}")
+    )
+    assert run(store, wordpress, "push")[0] == 0
+    [sent] = wordpress.saved
+    assert sent["status"] == "publish"
+    assert sent["date_gmt"] == earlier.astimezone(UTC).strftime("%Y-%m-%dT%H:%M:%S")
 
 
 def test_a_shared_title_needs_a_yes_before_creating_a_duplicate(tmp_path, store):

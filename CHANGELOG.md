@@ -61,6 +61,8 @@
   into a draft, and asks before replacing a remotely changed post or one this
   folder never synced, duplicating a title, converting a block post, or
   creating terms.
+- `cd [PROFILE]` changes to a profile's folder, through a shell function that
+  `setup` adds to `~/.zshrc` or `~/.bashrc`, as in HLSync.
 - `scripts/publish.sh [--prepare]` builds, checks, and publishes releases to
   PyPI.
 - `delete ID|SLUG` deletes a post from the blog, with the library images no
@@ -80,6 +82,10 @@
   this". `-t` and `-s` still set a different title or slug.
 - `push` and `pull` exit with status 1 when any post failed, as HLSync does,
   after finishing the other posts. A declined question is not a failure.
+- A public post whose `date` is still ahead waits locally instead of being
+  scheduled on WordPress: push skips it, with a note saying until when, and
+  the first push on or after its date and time publishes it. `diff -x` shows
+  it in the `x` slot.
 - Push never updates a post whose slug a new file shares, even with `--yes`; it
   reports the file as failed. `pull` links a file to its post instead.
 - A post's `date` can be just a day, `2026-11-10`, or a day and time,

@@ -33,7 +33,9 @@ The post body in Markdown.
   dates back in your local time, in the shortest form that keeps them exact, so
   a post's date reads differently on a computer in another time zone.
 - `status` is `public` or `private`, and defaults to `private`. Push publishes
-  a public post; a public post with a future `date` is scheduled. Push never
+  a public post. A public post whose `date` is still ahead waits: push skips
+  it, and the first push on or after that date and time publishes it, so
+  WPSync never leaves it to WordPress's scheduling. Push never
   sends a private post, except to turn a published post that became private
   into a WordPress draft, which keeps its ID, comments, and address for when it
   is made public again. Pull writes published posts as `public` and drafts,

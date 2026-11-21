@@ -13,10 +13,11 @@ the WordPress adapter resolves them to term IDs.
 
 `status` says whether a post belongs on the blog: `public` or `private`, with
 `private` the default, so a file is never published by accident. Push publishes
-public posts; a public post with a future date becomes a scheduled post on the
-platform. Push never sends a private post, with one exception: a post that is
-published on the platform and has become private locally is turned into a
-draft there. Unpublishing keeps the post's ID, comments, address, and platform
+public posts. A public post with a future date stays local until that date:
+the first push on or after it publishes the post, and WPSync does not rely on
+the platform's scheduling. Push never sends a private post, with one
+exception: a post that is published on the platform and has become private
+locally is turned into a draft there. Unpublishing keeps the post's ID, comments, address, and platform
 data, so making it public again republishes the same post; deleting and
 recreating it would lose them. Pull maps the platform's statuses onto the two:
 published posts become `public`; drafts, pending, scheduled, and

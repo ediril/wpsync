@@ -44,6 +44,12 @@ from wpsync.editors import Editor, EditorError, editor_command, launch
 from wpsync.posts import Post, PostStatus, PostSummary, RemoteState
 from wpsync.pull import Puller
 from wpsync.push import Pusher
+from wpsync.shell import (
+    ShellSetupError,
+    home_relative,
+    install_shell_function,
+    startup_file,
+)
 from wpsync.state import (
     PostRecord,
     StateError,
@@ -61,6 +67,7 @@ COMMANDS = (
     "map",
     "remove",
     "root",
+    "cd",
     "profile",
     "profiles",
     "editor",
@@ -74,6 +81,7 @@ COMMANDS = (
     "delete",
     "trash",
     "restore",
+    "setup",
 )
 PROFILE_AWARE_COMMANDS = frozenset(
     {
@@ -111,19 +119,25 @@ LEGEND = (
     ("~   ", "on both sides; push updates the post"),
     ("   r", "on WordPress only; push keeps it"),
     ("-  r", "on WordPress only; push -p deletes it"),
-    (" x  ", "private; push skips it"),
+    (" x  ", "private, or public and dated later; push skips it"),
     ("l", "local only"),
     ("r", "on WordPress only"),
     (" ", "blank side column: on both sides"),
     ("?", "conflict; push asks first, or cannot send it"),
     ("=", "unchanged"),
-    ("x", "private"),
+    ("x", "private, or dated later"),
     ("/", "folder"),
 )
-HIDDEN_HINTS = {Action.PRIVATE: ("private", "-x"), Action.KEPT: ("remote-only", "-a")}
+EXCLUDED = (Action.PRIVATE, Action.SCHEDULED)
+"""What push skips, shown in diff's exclusion slot."""
+HIDDEN_HINTS = {
+    Action.PRIVATE: ("private", "-x"),
+    Action.SCHEDULED: ("scheduled", "-x"),
+    Action.KEPT: ("remote-only", "-a"),
+}
 LS_LEGEND = (
     ("*", "Public: push publishes it (blank means private)"),
-    ("*Jan 1, 2029", "Public: scheduled; the blog shows it from that date"),
+    ("*Jan 1, 2029", "Public, dated later: push publishes it from that date"),
 )
 
 
@@ -295,6 +309,18 @@ def build_parser() -> argparse.ArgumentParser:
     )
     _profile_argument(root)
 
+    cd = subparsers.add_parser(
+        "cd",
+        help="change to a profile's local folder (needs 'wpsync setup')",
+        usage="wpsync cd [PROFILE]",
+        description=(
+            "Change the shell's directory to a profile's local folder. A program "
+            "cannot change its shell's directory, so this works through the "
+            "shell function that 'wpsync setup' installs."
+        ),
+    )
+    _profile_argument(cd)
+
     profile = subparsers.add_parser(
         "profile",
         help="show the current or named profile",
@@ -429,7 +455,7 @@ def build_parser() -> argparse.ArgumentParser:
         "-x",
         "--excluded",
         action="store_true",
-        help="also show private posts, which push skips",
+        help="also show private and later-dated posts, which push skips",
     )
     diff.add_argument(
         "-p",
@@ -516,6 +542,16 @@ def build_parser() -> argparse.ArgumentParser:
     )
     pull.add_argument(
         "-y", "--yes", action="store_true", help="answer yes to every question"
+    )
+
+    subparsers.add_parser(
+        "setup",
+        help="enable 'wpsync cd' in your zsh or bash startup file",
+        description=(
+            "Add a small wpsync shell function to ~/.zshrc or ~/.bashrc, "
+            "chosen from $SHELL, so 'wpsync cd PROFILE' changes directory. "
+            "Running it again updates the function in place."
+        ),
     )
     return parser
 
@@ -642,6 +678,30 @@ def _remove(arguments: argparse.Namespace, session: _Session) -> str:
 def _root(arguments: argparse.Namespace, session: _Session) -> str:
     _, profile = _resolve_profile(arguments, session.store.load())
     return os.fspath(profile.local_root)
+
+
+def _cd(arguments: argparse.Namespace, session: _Session) -> str:
+    raise ConfigurationError(
+        "cd needs the shell function; run 'wpsync setup', then open a new terminal"
+    )
+
+
+def _setup(arguments: argparse.Namespace, session: _Session) -> str:
+    try:
+        path = startup_file(session.environ)
+        replaced = install_shell_function(path)
+    except ShellSetupError as error:
+        raise ConfigurationError(str(error)) from error
+    except OSError as error:
+        raise ConfigurationError(f"could not update {path}: {error}") from error
+    home = Path(session.environ.get("HOME") or Path.home())
+    shown = home_relative(path, home)
+    action = "Updated" if replaced else "Added"
+    return (
+        f"{action} the wpsync shell function in {shown}.\n"
+        f"Open a new terminal, or run: source {shown}\n"
+        "Then 'wpsync cd PROFILE' changes to that profile's local folder."
+    )
 
 
 def _profile(arguments: argparse.Namespace, session: _Session) -> str:
@@ -944,6 +1004,7 @@ def _diff(arguments: argparse.Namespace, session: _Session) -> str:
             remote,
             root=root,
             media=read_media(root, profile.api_root),
+            now=datetime.now(UTC),
             prune=arguments.prune,
         )
     finally:
@@ -955,8 +1016,8 @@ def _diff(arguments: argparse.Namespace, session: _Session) -> str:
     for entry in result.entries:
         visible = (
             arguments.all
-            or entry.action not in (Action.UNCHANGED, Action.PRIVATE, Action.KEPT)
-            or (entry.action is Action.PRIVATE and arguments.excluded)
+            or entry.action not in (Action.UNCHANGED, *EXCLUDED, Action.KEPT)
+            or (entry.action in EXCLUDED and arguments.excluded)
         )
         if visible:
             shown.append(entry)
@@ -1015,9 +1076,9 @@ def _status_line(
     entry_action: Action, entry_presence: str, name: str, depth: int, color: bool
 ) -> str:
     """Action, exclusion, and presence slots, as HLSync shows them."""
-    private = entry_action is Action.PRIVATE
-    action = " " if private else entry_action.value
-    exclusion = "x" if private else " "
+    excluded = entry_action in EXCLUDED
+    action = " " if excluded else entry_action.value
+    exclusion = "x" if excluded else " "
     presence = entry_presence or " "
     status = f"{action}{exclusion} {presence}"
     if not color:
@@ -1383,9 +1444,19 @@ def _push(arguments: argparse.Namespace, session: _Session) -> _Transferred:
     media = read_media(root, profile.api_root)
     progress = _Progress(session)
     try:
-        plan = compare(selection, lazy, root=root, media=media, prune=arguments.prune)
+        plan = compare(
+            selection,
+            lazy,
+            root=root,
+            media=media,
+            now=datetime.now(UTC),
+            prune=arguments.prune,
+        )
         for note in plan.notes:
             session.status(f"Note: {note}")
+        for entry in plan.entries:
+            if entry.action is Action.SCHEDULED:
+                session.status(f"Note: {display_path(entry.path)} {entry.reason}.")
         sending = [entry for entry in plan.entries if entry.step is not None]
         images = {image.path for entry in sending for image in entry.images}
         if sending:
@@ -1423,6 +1494,7 @@ HANDLERS = {
     "map": _map,
     "remove": _remove,
     "root": _root,
+    "cd": _cd,
     "profile": _profile,
     "profiles": _profiles,
     "editor": _editor,
@@ -1436,6 +1508,7 @@ HANDLERS = {
     "delete": _delete,
     "trash": _trash,
     "restore": _restore,
+    "setup": _setup,
 }
 
 

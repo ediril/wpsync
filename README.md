@@ -56,6 +56,7 @@ header, and its images go in `content/images/`.
 
 ```console
 wpsync profiles                          # list profiles; * marks the current one
+wpsync cd myblog                         # go to a profile's folder (after wpsync setup)
 wpsync ls                                # local posts, without contacting the blog
 wpsync show hello                        # one post's details and issues
 wpsync create -o                         # start a new private post and open it

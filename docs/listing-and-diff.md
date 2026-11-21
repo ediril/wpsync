@@ -28,8 +28,8 @@ ID  Public  Issues  Title
                     https://blog.test/hurt/
 ```
 
-`Public` marks a public post with `*`, before its date if the post is scheduled
-and readers cannot see it yet; a private post has no mark. `Issues` counts what
+`Public` marks a public post with `*`, before its date if that date is still
+ahead, so push holds the post until then; a private post has no mark. `Issues` counts what
 is wrong with a post; `show` says what, for one post chosen by ID, slug, file,
 or title:
 
@@ -86,8 +86,9 @@ come before files, with their posts indented beneath them. The status has three 
 
 - the action: `+` push creates the post, `~` push updates it, `-` push `-p`
   deletes it, `?` a conflict push asks about or cannot send, `=` unchanged;
-- `x` when the post is private, so push skips it and its edits stay local until
-  you set `status: public`;
+- `x` when push skips the post: it is private, and its edits stay local until
+  you set `status: public`, or it is public with a `date` still ahead, and the
+  first push on or after that date sends it;
 - where the post exists: `l` only as a local file, `r` only on WordPress, blank
   on both sides.
 
@@ -98,7 +99,7 @@ replaced image changes every post that shows it, even if the post's file did
 not change, so those posts show as `~` too, and push uploads the new image and
 points them at it.
 
-Unchanged posts are shown with `-a`, private ones with `-x`, and posts whose
+Unchanged posts are shown with `-a`, private and later-dated ones with `-x`, and posts whose
 file you deleted, which push keeps on the blog (`   r`), with `-a` or `-p`.
 `wpsync --legend` explains each symbol.
 `diff` never changes anything. It contacts the blog only for posts that changed

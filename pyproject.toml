@@ -35,7 +35,12 @@ Repository = "https://github.com/ediril/wpsync.git"
 wpsync = "wpsync.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8,<10", "ruff>=0.12,<1", "twine>=6,<7"]
+dev = [
+    "pip>=26.3,<27",
+    "pytest>=8,<10",
+    "ruff>=0.12,<1",
+    "twine>=6,<7",
+]
 
 [tool.hatch.version]
 source = "code"

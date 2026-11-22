@@ -234,7 +234,7 @@ def _local_changes(document: LocalDocument, record: PostRecord) -> list[str]:
     return changes
 
 
-def _typo_notes(document: LocalDocument) -> list[str]:
+def typo_notes(document: LocalDocument) -> list[str]:
     notes = []
     for key in document.document.extra_keys:
         close = difflib.get_close_matches(key, FIELDS, n=1, cutoff=0.75)
@@ -269,7 +269,7 @@ def compare(
     notes: list[str] = []
     present = set()
     for document in selection.documents:
-        notes.extend(_typo_notes(document))
+        notes.extend(typo_notes(document))
         post_id = document.document.post_id
         path = PurePosixPath(document.path)
         private = document.document.post.status is PostStatus.PRIVATE
@@ -411,7 +411,7 @@ def _with_images(
         problems = (
             []
             if entry.action is Action.UNCHANGED
-            else _image_problems(entry.path, body, root, library)
+            else image_problems(entry.path, body, root, library)
         )
         images = tuple(
             ImageUpload(action, image)
@@ -438,7 +438,7 @@ def _with_images(
     return result
 
 
-def _image_problems(
+def image_problems(
     post: PurePosixPath,
     body: str,
     root: Path,

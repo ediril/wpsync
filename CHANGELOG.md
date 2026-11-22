@@ -63,6 +63,12 @@
   creating terms.
 - `cd [PROFILE]` changes to a profile's folder, through a shell function that
   `setup` adds to `~/.zshrc` or `~/.bashrc`, as in HLSync.
+- `move POST|FOLDER DESTINATION` moves a post file, or a folder of posts,
+  under `content/`, updating the moved posts' image paths so they show the
+  same images. It never replaces a file or folder.
+- `validate` updates the image paths of post files moved since the last sync,
+  then lists missing images, images outside the profile folder, images gone
+  from the blog, and misspelled header keys, exiting 1 when it finds any.
 - `scripts/publish.sh [--prepare]` builds, checks, and publishes releases to
   PyPI.
 - `delete ID|SLUG` deletes a post from the blog, with the library images no
@@ -82,6 +88,11 @@
   this". `-t` and `-s` still set a different title or slug.
 - `push` and `pull` exit with status 1 when any post failed, as HLSync does,
   after finishing the other posts. A declined question is not a failure.
+- Pull writes a post it has no local file for into `content/imported/`; a post
+  pulled before is updated wherever its file is.
+- A post file moved by hand keeps its images: its image paths are updated on
+  the next `push` or `pull` of it, or `validate`, and `diff` says so. The
+  update alone does not count as an edit.
 - A public post whose `date` is still ahead waits locally instead of being
   scheduled on WordPress: push skips it, with a note saying until when, and
   the first push on or after its date and time publishes it. `diff -x` shows

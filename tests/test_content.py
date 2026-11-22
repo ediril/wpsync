@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 
 from wpsync.markup.dom import canonical, parse_html
+from wpsync.markup.markdown import replace_image_sources
 from wpsync.media import MediaImage
 from wpsync.posts import Conversion
 from wpsync.wordpress.autop import autop
@@ -285,3 +286,26 @@ def test_pull_never_changes_what_a_post_displays(raw, kept_text):
 
     assert same_display(raw, html)
     assert kept_text in html
+
+
+def test_replacing_image_sources_keeps_everything_else_as_written():
+    body = (
+        '![A [b]](<../images/my pic.jpg> "Title"){width=300} and ![](../images/x.png)\n'
+        "\n[r]: ../images/ref.png\n\n![r][r] [a link](../images/x.png)\n"
+    )
+    assert replace_image_sources(
+        body.replace("[a link](../images/x.png)", "text"),
+        {
+            "../images/my pic.jpg": "images/my pic.jpg",
+            "../images/x.png": "images/x.png",
+            "../images/ref.png": "images/ref.png",
+        },
+    ) == (
+        '![A [b]](<images/my pic.jpg> "Title"){width=300} and ![](images/x.png)\n'
+        "\n[r]: images/ref.png\n\n![r][r] text\n"
+    )
+    # A link or code naming the same path would change too, so nothing is.
+    assert replace_image_sources(body, {"../images/x.png": "images/x.png"}) is None
+    assert (
+        replace_image_sources("`![](a.png)` ![](a.png)\n", {"a.png": "b.png"}) is None
+    )

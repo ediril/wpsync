@@ -25,17 +25,17 @@ def test_delete_keeps_the_post_and_its_own_images_in_trash_until_restored(
     wordpress.pages = [{"id": 50, "content": {"raw": image_block(43, "shared.jpg")}}]
     add_profile(store, "myblog", tmp_path)
     run(store, wordpress, "pull")
-    post = (tmp_path / "content/post-1.md").read_text()
+    post = (tmp_path / "content/imported/post-1.md").read_text()
 
     status, output, _ = run(store, wordpress, "delete", "post-1", "-y")
 
     assert (status, output) == (
         0,
         "Deleted #1 from WordPress, with 1 image; "
-        "moved content/post-1.md to .trash/content/post-1.md.\n",
+        "moved content/imported/post-1.md to .trash/content/imported/post-1.md.\n",
     )
     assert wordpress.deleted == [("posts", 1), ("media", 42)]
-    assert (tmp_path / ".trash/content/post-1.md").read_text() == post
+    assert (tmp_path / ".trash/content/imported/post-1.md").read_text() == post
     assert sorted(
         p.name for p in (tmp_path / ".trash/content/images/2026/01").iterdir()
     ) == [
@@ -43,20 +43,22 @@ def test_delete_keeps_the_post_and_its_own_images_in_trash_until_restored(
         "sunset-1024x768.jpg",
     ]
     _, output, _ = run(store, wordpress, "trash")
-    assert output == "ID  Title (restores to)\n 1  Post 1 (content/post-1.md)\n"
+    assert (
+        output == "ID  Title (restores to)\n 1  Post 1 (content/imported/post-1.md)\n"
+    )
 
     status, output, _ = run(store, wordpress, "restore", "post-1")
     assert (status, output) == (
         0,
-        "Restored content/post-1.md; push puts it back on the blog.\n",
+        "Restored content/imported/post-1.md; push puts it back on the blog.\n",
     )
-    assert not (tmp_path / ".trash/content/post-1.md").exists()
+    assert not (tmp_path / ".trash/content/imported/post-1.md").exists()
     assert (tmp_path / "content/images/2026/01/sunset-1024x768.jpg").exists()
 
     _, output, errors = run(store, wordpress, "push")
     assert screen(output, errors) == [
         "  + images/2026/01/sunset-1024x768.jpg",
-        "  + post-1.md",
+        "  + imported/post-1.md",
         "Push complete: 2 changes.",
     ]
     assert len(wordpress.uploads) == 1
@@ -69,31 +71,32 @@ def test_push_prune_deletes_posts_whose_files_were_deleted_keeping_a_copy(
     wordpress = FakeWordPress(post_count=2)
     add_profile(store, "myblog", tmp_path)
     run(store, wordpress, "pull")
-    (tmp_path / "content/post-1.md").unlink()
-    (tmp_path / "content/post-2.md").unlink()
+    (tmp_path / "content/imported/post-1.md").unlink()
+    (tmp_path / "content/imported/post-2.md").unlink()
     wordpress.post(2)["title"]["raw"] = "Edited on WordPress"
 
     _, output, _ = run(store, wordpress, "push")
     assert output == "  Nothing to push.\n"
     _, output, _ = run(store, wordpress, "diff", "-p")
     assert output.splitlines() == [
-        "-  r post-1.md",
-        "?  r post-2.md",
+        "     imported/",
+        "-  r   post-1.md",
+        "?  r   post-2.md",
     ]
 
     _, output, errors = run(store, wordpress, "push", "-p")
     assert screen(output, errors) == [
-        "  - post-1.md",
-        "  ? post-2.md",
+        "  - imported/post-1.md",
+        "  ? imported/post-2.md",
         "Push complete: 1 change; 1 skipped. "
         "Rerun with --yes to accept the skipped changes.",
     ]
     assert wordpress.deleted == [("posts", 1)]
-    assert "id: 1\n" in (tmp_path / ".trash/content/post-1.md").read_text()
+    assert "id: 1\n" in (tmp_path / ".trash/content/imported/post-1.md").read_text()
 
     _, output, _ = run(store, wordpress, "push", "-p", "-y")
     assert output.splitlines()[-1] == "Push complete: 1 change."
-    copy = (tmp_path / ".trash/content/post-2.md").read_text()
+    copy = (tmp_path / ".trash/content/imported/post-2.md").read_text()
     assert "title: Edited on WordPress\n" in copy
     _, output, _ = run(store, wordpress, "pull")
     assert output.splitlines()[-1] == "  Nothing to pull."

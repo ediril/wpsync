@@ -12,11 +12,12 @@ else.
 from __future__ import annotations
 
 import re
-from collections.abc import Callable, Sequence
+from collections.abc import Callable, Mapping, Sequence
 from dataclasses import dataclass
 
 from markdown_it import MarkdownIt
 from markdown_it.common.html_blocks import block_names
+from markdown_it.helpers import parseLinkDestination
 from markdown_it.token import Token
 from mdit_py_plugins.attrs import attrs_block_plugin, attrs_plugin
 from mdit_py_plugins.attrs.parse import parse as parse_attrs
@@ -136,6 +137,39 @@ def image_sources(markdown: str) -> set[str]:
             if child.type == "image":
                 sources.add(str(child.attrs["src"]))
     return sources
+
+
+# Where a link destination starts: after `](` of an inline link or image, or
+# after the label of a reference definition.
+DESTINATION_START = re.compile(r"\]\(\s*|^ {0,3}\[(?:[^\]\\\n]|\\.)+\]:\s*", re.M)
+
+
+def replace_image_sources(markdown: str, replacements: Mapping[str, str]) -> str | None:
+    """The document with the given image sources replaced, as image_sources
+    reports them, leaving every other character as written.
+
+    None when the rewritten text would not render exactly as the original with
+    only those sources changed, such as a source also written inside code.
+    """
+    spans = []
+    for match in DESTINATION_START.finditer(markdown):
+        found = parseLinkDestination(markdown, match.end(), len(markdown))
+        if found.ok and found.str in replacements:
+            spans.append(
+                (match.end(), found.pos, _destination(replacements[found.str], None))
+            )
+    rewritten = markdown
+    for start, end, text in reversed(spans):
+        rewritten = rewritten[:start] + text + rewritten[end:]
+    env: dict = {}
+    tokens = PARSER.parse(markdown, env)
+    for token in tokens:
+        for child in token.children or []:
+            source = child.attrs.get("src") if child.type == "image" else None
+            if source in replacements:
+                child.attrs["src"] = replacements[str(source)]
+    expected = PARSER.renderer.render(tokens, PARSER.options, env)
+    return rewritten if PARSER.render(rewritten) == expected else None
 
 
 def render_inline(token: Token) -> list[Node]:

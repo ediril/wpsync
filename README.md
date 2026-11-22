@@ -65,6 +65,8 @@ wpsync pull                              # bring changes from the blog
 wpsync diff                              # what push would change, read-only
 wpsync push hello                        # send one post
 wpsync delete hello                      # delete a post, keeping it in .trash/
+wpsync move imported/hello.md notes/     # move a post, keeping its image paths
+wpsync validate                          # check every post, fix moved image paths
 ```
 
 A new post is private until you set `status: public` in its header. Pull asks

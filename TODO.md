@@ -14,6 +14,8 @@
 
 ## Backlog
 
+- [ ] A profile setting for where pull writes posts it has no file for,
+  `content/imported/` by default, for people who prefer `content/` itself.
 - [ ] `diff -t POST`: show the text difference push would make, comparing the
   file with the current post converted to Markdown.
 

@@ -94,8 +94,9 @@ path on every pull. A post in `content/` refers to
 `images/2025/11/photo.png`, and one in `content/2019/` to
 `../images/2025/11/photo.png`. An
 image you add can be anywhere in the profile folder, so an editor that saves
-pasted images next to the post works too. Moving a post into another folder
-breaks its relative image paths, as it does in any Markdown editor.
+pasted images next to the post works too. When a post moves to another folder,
+WPSync updates its image paths so they name the same images; see
+[Moving posts](#moving-posts).
 
 In Obsidian, turn off **Use [[Wikilinks]]** and set **New link format** to
 **Relative path to file** under Settings, Files and links. WPSync reads standard
@@ -134,9 +135,57 @@ assigns one from the title when the post is created.
 
 You can rename or move a post's file and change its title at any time. The
 `id` in its header ties the file to its post, so push updates the same post
-instead of creating a new one. Moving a file to another folder breaks its
-relative image paths, as in any Markdown editor. `create` never overwrites a
-file and only touches local files.
+instead of creating a new one. `create` never overwrites a file and only
+touches local files.
+
+## Moving posts
+
+Move a post's file however you like: with `move`, in Finder, or in your editor.
+Its image paths are relative to the file, so a move would break them; WPSync
+updates them to name the same images from the new place. An image that moved
+with the post, such as one saved next to it, is left as it is.
+
+Paths are relative to the folder you are in, as in the shell; from `content/`:
+
+```console
+wpsync move imported/hello.md .        # into content/
+wpsync move hello.md notes/            # into notes/, created if needed
+wpsync move hello.md notes/hi.md       # and rename it
+wpsync move imported 2019              # a folder of posts, renamed to 2019/
+```
+
+`move` takes a post, by ID, slug, file, or title, or a folder under `content/`,
+and moves it into the destination when that is an existing folder. Otherwise
+the destination is the new name: a folder for a folder, created as needed, and
+a folder to move a post into unless it ends in `.md`. It updates the moved posts' image paths at once. It
+never replaces an existing file or folder, and refuses a folder that holds
+images other posts show.
+
+For a file moved another way, WPSync knows where it was until the move is
+recorded, and updates its image paths then: on the next `push` or `pull` of
+that post, or `validate`. `diff` says what push will update. The update is not
+an edit: a post you did not otherwise change is still unchanged, so push sends
+nothing and pull does not ask before updating it. Moving a file that was never
+pushed or pulled leaves its image paths to you, since WPSync has no record of
+where it was.
+
+## Checking posts
+
+`validate` checks every post file without contacting the blog. It first
+updates the image paths of files moved since they were last recorded, then
+lists what push could not send or the blog no longer has: images missing or
+outside the profile folder, images gone from the blog since the last pull, and
+header keys that look misspelled. It exits with status 1 when it finds any.
+
+```console
+$ wpsync validate
+  ~ post-1.md: updated 1 image path after its move from imported/post-1.md
+  ? lost.md: image not found: images/nope.png
+Checked 3 posts: 1 updated, 1 issue.
+```
+
+An invalid header or two files with the same `id` stop it with an error, as
+they stop every command.
 
 ## Opening a post
 

@@ -4,8 +4,10 @@
 
 ## Pulling posts
 
-`pull` brings the blog's posts into the profile folder: each post becomes
-`content/<slug>.md`, and images from the site's media library are downloaded into
+`pull` brings the blog's posts into the profile folder. A post with no local file
+yet becomes `content/imported/<slug>.md`, where you can leave it or move it
+anywhere under `content/` (see [Moving posts](post-files.md#moving-posts)); a
+post pulled before is updated wherever its file is. Images from the site's media library are downloaded into
 `content/images/` and referenced from the Markdown. The copy of an image that the post
 displays is downloaded, usually WordPress's resized `large` copy.
 

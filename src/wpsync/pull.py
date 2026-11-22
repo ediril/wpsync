@@ -38,6 +38,10 @@ class PullRemote(Protocol):
     def available(self, url: str) -> bool: ...
 
 
+IMPORTED_DIR = "imported"
+"""Where pull writes a post with no local file, under content/."""
+
+
 @dataclass(frozen=True)
 class _LocalCandidate:
     """A local file without a post ID, as a match candidate."""
@@ -264,7 +268,7 @@ class Puller:
 
     def _new_path(self, post: FetchedPost) -> PurePosixPath:
         for name in (post.name, f"{post.name}-{post.id}"):
-            path = PurePosixPath(CONTENT_DIR) / f"{name}.md"
+            path = PurePosixPath(CONTENT_DIR, IMPORTED_DIR, f"{name}.md")
             if path not in self.taken and not (self.root / path).exists():
                 return path
         raise ValueError(f"no free file name for post {post.id}")

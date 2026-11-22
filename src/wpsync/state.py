@@ -6,7 +6,7 @@ import json
 import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
-from dataclasses import dataclass, replace
+from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 
 from wpsync.posts import ContentFormat
@@ -173,28 +173,6 @@ class StateWriter:
                 record.size,
             ),
         )
-
-
-def follow_moves(
-    root: Path,
-    api_root: str,
-    records: dict[str, PostRecord],
-    paths: dict[str, PurePosixPath],
-) -> dict[str, PostRecord]:
-    """The records with each post's path updated to where its file is now.
-
-    A post is its ID; its path is only where its file was last seen.
-    """
-    moved = {
-        post_id: replace(record, path=paths[post_id])
-        for post_id, record in records.items()
-        if post_id in paths and paths[post_id] != record.path
-    }
-    if moved:
-        with write_state(root, api_root) as state:
-            for record in moved.values():
-                state.save(record)
-    return {**records, **moved}
 
 
 @contextmanager

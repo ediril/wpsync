@@ -41,6 +41,8 @@ from wpsync.documents import (
     write_document,
 )
 from wpsync.editors import Editor, EditorError, editor_command, launch
+from wpsync.media import post_images
+from wpsync.moves import Move, follow_moves
 from wpsync.posts import Post, PostStatus, PostSummary, RemoteState
 from wpsync.pull import Puller
 from wpsync.push import Pusher
@@ -53,11 +55,20 @@ from wpsync.shell import (
 from wpsync.state import (
     PostRecord,
     StateError,
-    follow_moves,
     read_media,
     read_records,
 )
-from wpsync.sync import Action, DiffEntry, Outcome, SelectionError, compare, select
+from wpsync.sync import (
+    Action,
+    DiffEntry,
+    Outcome,
+    Selection,
+    SelectionError,
+    compare,
+    image_problems,
+    select,
+    typo_notes,
+)
 from wpsync.trash import TrashError, delete_post, restore_post
 from wpsync.wordpress.client import WordPressClient, WordPressError, discover_api_root
 from wpsync.wordpress.remote import WordPressRemote
@@ -81,6 +92,8 @@ COMMANDS = (
     "delete",
     "trash",
     "restore",
+    "move",
+    "validate",
     "setup",
 )
 PROFILE_AWARE_COMMANDS = frozenset(
@@ -99,6 +112,8 @@ PROFILE_AWARE_COMMANDS = frozenset(
         "delete",
         "trash",
         "restore",
+        "move",
+        "validate",
     }
 )
 TIMESTAMP_FORMAT = "%Y-%m-%d-%H%M"
@@ -544,6 +559,36 @@ def build_parser() -> argparse.ArgumentParser:
         "-y", "--yes", action="store_true", help="answer yes to every question"
     )
 
+    move = subparsers.add_parser(
+        "move",
+        help="move a post or a folder of posts, keeping their image paths",
+        usage=(
+            "wpsync move POST|FOLDER DESTINATION\n"
+            "       wpsync PROFILE move POST|FOLDER DESTINATION"
+        ),
+        description=(
+            "Move a post file, or a folder under content/, and update the moved "
+            "posts' relative image paths so they still show the same images. "
+            "Into DESTINATION when it is a folder; a post may also be renamed to "
+            "a .md file. Never replaces an existing file or folder."
+        ),
+    )
+    move.add_argument("source", metavar="POST|FOLDER", help="a post or a folder")
+    move.add_argument("destination", metavar="DESTINATION", help="where it goes")
+
+    subparsers.add_parser(
+        "validate",
+        help="check every post file and fix image paths of moved posts",
+        usage="wpsync validate\n       wpsync PROFILE validate",
+        description=(
+            "Update the image paths of post files moved since the last sync, "
+            "then report what push could not send or the blog no longer has: "
+            "missing images, images outside the profile folder, files gone from "
+            "the blog, and misspelled header keys. Exits 1 when something is "
+            "wrong. Works offline."
+        ),
+    )
+
     subparsers.add_parser(
         "setup",
         help="enable 'wpsync cd' in your zsh or bash startup file",
@@ -986,12 +1031,20 @@ def _show(arguments: argparse.Namespace, session: _Session) -> str:
 def _diff(arguments: argparse.Namespace, session: _Session) -> str:
     profile, base = _profile_root(arguments, session)
     root = profile.local_root
+    documents = scan_documents(root)
+    records = read_records(root, profile.api_root)
+    chosen = select(arguments.post, documents, records, root=root, base=base)
+    # Preview what push does first: update the image paths of moved posts.
+    followed = follow_moves(
+        root,
+        profile.api_root,
+        documents,
+        records,
+        scope=_push_scope(arguments.post, chosen),
+        save=False,
+    )
     selection = select(
-        arguments.post,
-        scan_documents(root),
-        read_records(root, profile.api_root),
-        root=root,
-        base=base,
+        arguments.post, followed.documents, followed.records, root=root, base=base
     )
     session.status(
         f"Checking differences for profile '{_profile_name(arguments, session)}'..."
@@ -1034,6 +1087,8 @@ def _diff(arguments: argparse.Namespace, session: _Session) -> str:
         ]
         lines.append(f"Not shown: {', '.join(counts)}")
     lines.extend(f"Note: {note}" for note in result.notes)
+    moves = _move_notes(followed.moves, done="push will update")
+    lines.extend(f"Note: {note}" for note in moves)
     return "\n".join(lines)
 
 
@@ -1344,20 +1399,145 @@ class _Progress:
 
 
 @dataclass(frozen=True)
-class _Transferred:
-    """What push or pull prints, and whether a post failed, which exits 1."""
+class _Summary:
+    """What push, pull, or validate prints, and whether something failed,
+    which exits 1."""
 
     summary: str
     failed: bool
 
 
-def _pull(arguments: argparse.Namespace, session: _Session) -> _Transferred:
+def _move(arguments: argparse.Namespace, session: _Session) -> str:
+    profile, base = _profile_root(arguments, session)
+    root = profile.local_root
+    content = (root / CONTENT_DIR).resolve()
+    documents = scan_documents(root)
+    source = (base / arguments.source).resolve()
+    if source.is_dir():
+        if not source.is_relative_to(content) or source == content:
+            raise SelectionError(f"{arguments.source} is not a folder under content/")
+        moving = [
+            d for d in documents if (root / d.path).resolve().is_relative_to(source)
+        ]
+        if not moving:
+            raise SelectionError(f"{arguments.source} has no post files")
+    else:
+        moving = select(arguments.source, documents, {}, root=root, base=base).documents
+        source = (root / moving[0].path).resolve()
+    destination = (base / arguments.destination).resolve()
+    if destination.is_dir():
+        target = destination / source.name
+    elif source.is_file() and destination.suffix == ".md":
+        target = destination
+    elif source.is_file():
+        target = destination / source.name
+    else:
+        target = destination
+    if not target.is_relative_to(content) or target == content:
+        raise SelectionError(f"{arguments.destination} is not under content/")
+    if any(part.startswith(".") for part in target.relative_to(content).parts):
+        raise SelectionError(f"{arguments.destination} is hidden; WPSync skips it")
+    if target.exists():
+        raise SelectionError(f"{_relative(root, target)} already exists")
+    if target.is_relative_to(source):
+        raise SelectionError(f"cannot move {arguments.source} into itself")
+    moved_files = {(root / d.path).resolve() for d in moving}
+    for item in documents:
+        if (root / item.path).resolve() in moved_files:
+            continue
+        for image in post_images(PurePosixPath(item.path), item.document.post.body):
+            if (root / image).resolve().is_relative_to(source):
+                raise SelectionError(
+                    f"{display_path(item.path)} shows {display_path(image)}, "
+                    f"which would move with {arguments.source}"
+                )
+    folder = source.is_dir()
+
+    def new_place(item: LocalDocument) -> PurePosixPath:
+        file = (root / item.path).resolve()
+        return _relative(root, target / file.relative_to(source) if folder else target)
+
+    previous = {new_place(item): PurePosixPath(item.path) for item in moving}
+    target.parent.mkdir(parents=True, exist_ok=True)
+    source.rename(target)
+    followed = follow_moves(
+        root,
+        profile.api_root,
+        scan_documents(root),
+        read_records(root, profile.api_root),
+        scope=set(),
+        previous=previous,
+    )
+    shown = display_path(_relative(root, source))
+    to = display_path(_relative(root, target))
+    if folder:
+        posts = f"{len(moving)} post{'s' * (len(moving) != 1)}"
+        lines = [f"Moved {shown}/ to {to}/ ({posts})."]
+    else:
+        lines = [f"Moved {shown} to {to}."]
+    lines.extend(f"Note: {note}" for note in _move_notes(followed.moves))
+    return "\n".join(lines)
+
+
+def _relative(root: Path, path: Path) -> PurePosixPath:
+    return PurePosixPath(path.relative_to(root.resolve()).as_posix())
+
+
+def _validate(arguments: argparse.Namespace, session: _Session) -> _Summary:
+    profile, _ = _profile_root(arguments, session)
+    root = profile.local_root
+    followed = follow_moves(
+        root,
+        profile.api_root,
+        scan_documents(root),
+        read_records(root, profile.api_root),
+    )
+    library = {record.path: record for record in read_media(root, profile.api_root)}
+    updated = [move for move in followed.moves if move.images]
+    lines = [f"  ~ {note}" for note in _move_notes(updated)]
+    issues = _move_notes([move for move in followed.moves if move.problem])
+    for item in sorted(followed.documents, key=lambda d: str(d.path)):
+        path = PurePosixPath(item.path)
+        shown = display_path(path)
+        post_id = item.document.post_id
+        record = followed.records.get(post_id) if post_id else None
+        issues.extend(
+            f"{shown}: {reason}"
+            for _, reason in image_problems(
+                path, item.document.post.body, root, library
+            )
+        )
+        issues.extend(
+            f"{shown}: missing on the blog: {url}"
+            for url in (record.missing_files if record else ())
+        )
+        issues.extend(typo_notes(item))
+    lines.extend(f"  ? {issue}" for issue in issues)
+    count = len(followed.documents)
+    checked = f"Checked {count} post{'s' * (count != 1)}"
+    parts = [f"{len(updated)} updated"] if updated else []
+    if issues:
+        parts.append(f"{len(issues)} issue{'s' * (len(issues) != 1)}")
+    lines.append(f"{checked}: {', '.join(parts) or 'no issues'}.")
+    return _Summary("\n".join(lines), failed=bool(issues))
+
+
+def _pull(arguments: argparse.Namespace, session: _Session) -> _Summary:
     profile, base = _profile_root(arguments, session)
     root = profile.local_root
     yes = arguments.yes
     documents = scan_documents(root)
     ids, slug = _pull_target(arguments.post, documents, root, base)
-    records = _follow_files(profile, documents)
+    followed = follow_moves(
+        root,
+        profile.api_root,
+        documents,
+        read_records(root, profile.api_root),
+        scope=None if arguments.post is None else set(ids or ()),
+    )
+    documents, records = followed.documents, followed.records
+    for note in _move_notes(followed.moves):
+        session.status(f"Note: {note}")
 
     session.status(
         f"Preparing pull for profile '{_profile_name(arguments, session)}'..."
@@ -1401,30 +1581,49 @@ def _pull(arguments: argparse.Namespace, session: _Session) -> _Transferred:
     summary = result.summary()
     if result.declined and not yes:
         summary += " Rerun with --yes to accept the skipped changes."
-    return _Transferred(summary, failed=result.failed > 0)
+    return _Summary(summary, failed=result.failed > 0)
 
 
-def _follow_files(
-    profile: Profile, documents: list[LocalDocument]
-) -> dict[str, PostRecord]:
-    """The post records, with each path following its file if it moved."""
-    root = profile.local_root
-    paths = {
-        item.document.post_id: PurePosixPath(item.path)
-        for item in documents
-        if item.document.post_id is not None
-    }
-    return follow_moves(
-        root, profile.api_root, read_records(root, profile.api_root), paths
-    )
+def _push_scope(selector: str | None, chosen: Selection) -> set[str] | None:
+    """The posts whose moves push follows: the ones it sends, all when None."""
+    if selector is None:
+        return None
+    return {d.document.post_id for d in chosen.documents if d.document.post_id}
 
 
-def _push(arguments: argparse.Namespace, session: _Session) -> _Transferred:
+def _move_notes(moves: list[Move], done: str = "updated") -> list[str]:
+    """What following moved files changed in them, or could not."""
+    notes = []
+    for move in moves:
+        path, previous = display_path(move.path), display_path(move.previous)
+        if move.problem:
+            notes.append(f"{path}: {move.problem}")
+        elif move.images:
+            paths = f"image path{'s' * (move.images != 1)}"
+            notes.append(
+                f"{path}: {done} {move.images} {paths} after its move from {previous}"
+            )
+    return notes
+
+
+def _push(arguments: argparse.Namespace, session: _Session) -> _Summary:
     profile, base = _profile_root(arguments, session)
     root = profile.local_root
     documents = scan_documents(root)
-    records = _follow_files(profile, documents)
-    selection = select(arguments.post, documents, records, root=root, base=base)
+    records = read_records(root, profile.api_root)
+    chosen = select(arguments.post, documents, records, root=root, base=base)
+    followed = follow_moves(
+        root,
+        profile.api_root,
+        documents,
+        records,
+        scope=_push_scope(arguments.post, chosen),
+    )
+    for note in _move_notes(followed.moves):
+        session.status(f"Note: {note}")
+    selection = select(
+        arguments.post, followed.documents, followed.records, root=root, base=base
+    )
     lazy = _LazyRemote(profile, session)
     opened: list[WordPressRemote] = []
 
@@ -1486,7 +1685,7 @@ def _push(arguments: argparse.Namespace, session: _Session) -> _Transferred:
     if result.declined and not arguments.yes:
         summary += " Rerun with --yes to accept the skipped changes."
     notes = [f"Note: {note}" for note in result.notes]
-    return _Transferred("\n".join([summary, *notes]), failed=result.failed > 0)
+    return _Summary("\n".join([summary, *notes]), failed=result.failed > 0)
 
 
 HANDLERS = {
@@ -1508,6 +1707,8 @@ HANDLERS = {
     "delete": _delete,
     "trash": _trash,
     "restore": _restore,
+    "move": _move,
+    "validate": _validate,
     "setup": _setup,
 }
 
@@ -1554,7 +1755,7 @@ def run(
     ) as error:
         print(f"wpsync: error: {error}", file=stderr)
         return 1
-    if isinstance(message, _Transferred):
+    if isinstance(message, _Summary):
         print(message.summary, file=stdout)
         return 1 if message.failed else 0
     print(message, file=stdout)

@@ -22,7 +22,7 @@ def pulled_blog(tmp_path, store):
     add_profile(store, "myblog", tmp_path)
     run(store, wordpress, "pull")
     wordpress.requests.clear()
-    return wordpress, tmp_path / "content/post-1.md"
+    return wordpress, tmp_path / "content/imported/post-1.md"
 
 
 def test_an_untitled_post_publishes_and_keeps_its_id_through_a_rename_and_title(
@@ -106,9 +106,10 @@ def test_a_renamed_file_keeps_its_post_when_a_new_file_takes_its_old_name(
 
     _, output, _ = run(store, wordpress, "diff", "-a")
     assert output.splitlines() == [
+        "     imported/",
+        "=      post-2.md",
+        "=      renamed.md",
         "=    post-1.md",
-        "=    post-2.md",
-        "=    renamed.md",
     ]
 
 
@@ -232,7 +233,7 @@ def test_an_update_sends_only_the_side_of_the_file_that_changed(tmp_path, store)
     path.write_text(path.read_text().replace("title: Post 1", "title: Renamed"))
     _, output, errors = run(store, wordpress, "push")
     assert screen(output, errors)[-2:] == [
-        "  ~ post-1.md",
+        "  ~ imported/post-1.md",
         "Push complete: 1 change.",
     ]
     assert "content" not in wordpress.saved[-1]
@@ -254,7 +255,7 @@ def test_a_change_on_both_sides_or_to_a_block_post_needs_a_yes(tmp_path, store):
     wordpress.post(1)["title"]["raw"] = "Changed there"
 
     _, output, errors = run(store, wordpress, "push")
-    assert "  ? post-1.md" in errors.splitlines()
+    assert "  ? imported/post-1.md" in errors.splitlines()
     assert wordpress.saved == []
     run(store, wordpress, "pull", "1", "--yes")
 
@@ -265,7 +266,7 @@ def test_a_change_on_both_sides_or_to_a_block_post_needs_a_yes(tmp_path, store):
     path.write_text(path.read_text().replace("Block", "Edited"))
 
     _, output, errors = run(store, wordpress, "push")
-    assert "  ? post-1.md" in errors.splitlines()
+    assert "  ? imported/post-1.md" in errors.splitlines()
     assert wordpress.saved == []
 
     _, output, errors = run(store, wordpress, "push", "-y")
@@ -284,7 +285,7 @@ def test_a_private_post_becomes_a_draft_and_later_republishes_with_unsent_edits(
 
     _, output, errors = run(store, wordpress, "push")
 
-    assert "  ~ post-1.md" in errors.splitlines()
+    assert "  ~ imported/post-1.md" in errors.splitlines()
     assert wordpress.saved == [{"status": "draft"}]
     assert wordpress.post(1)["content"]["raw"] == "<p>Body 1</p>"
 
@@ -404,7 +405,7 @@ def test_a_missing_image_is_not_uploaded_and_a_lost_one_stops_only_its_post(
     wordpress.broken_uploads["/wp-content/uploads/2026/01/sunset-1024x768.jpg"] = 404
     add_profile(store, "myblog", tmp_path)
     run(store, wordpress, "pull")
-    pulled = tmp_path / "content/post-1.md"
+    pulled = tmp_path / "content/imported/post-1.md"
     pulled.write_text(pulled.read_text() + "\nMore.\n")
     write_post(
         tmp_path, "lost.md", "title: Lost\nstatus: public\n", "![](images/nope.png)"
@@ -413,10 +414,11 @@ def test_a_missing_image_is_not_uploaded_and_a_lost_one_stops_only_its_post(
 
     _, output, _ = run(store, wordpress, "diff")
     assert output.splitlines() == [
+        "     imported/",
+        "~      post-1.md",
         "+  l fine.md",
         "?  l lost.md",
         "?      images/nope.png",
-        "~    post-1.md",
     ]
     _, output, errors = run(store, wordpress, "push", "-y")
 

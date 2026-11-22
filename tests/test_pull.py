@@ -38,11 +38,11 @@ def test_first_pull_writes_posts_and_images_that_diff_then_sees_as_synced(
     assert "Signed in to https://blog.test as 'emrah' (administrator)." in errors
     assert screen(output, errors) == [
         "  + images/2026/01/sunset-1024x768.jpg",
-        "  + post-1.md",
-        "  + post-2.md",
+        "  + imported/post-1.md",
+        "  + imported/post-2.md",
         "Pull complete: 3 changes.",
     ]
-    assert (tmp_path / "content/post-1.md").read_text() == (
+    assert (tmp_path / "content/imported/post-1.md").read_text() == (
         "---\n"
         "id: 1\n"
         "title: Post 1\n"
@@ -58,7 +58,7 @@ def test_first_pull_writes_posts_and_images_that_diff_then_sees_as_synced(
         "\n"
         "Hello **world**.\n"
         "\n"
-        "![Sunset](images/2026/01/sunset-1024x768.jpg)\n"
+        "![Sunset](../images/2026/01/sunset-1024x768.jpg)\n"
     )
     image = tmp_path / "content/images/2026/01/sunset-1024x768.jpg"
     assert (
@@ -80,7 +80,10 @@ def test_a_title_is_written_as_readers_see_it(tmp_path, store):
 
     pull(store, wordpress)
 
-    assert "title: Riffs & Ponders\n" in (tmp_path / "content/post-2.md").read_text()
+    assert (
+        "title: Riffs & Ponders\n"
+        in (tmp_path / "content/imported/post-2.md").read_text()
+    )
     status, output, _ = invoke(["myblog", "diff"], store, wordpress=wordpress)
     assert output.startswith("No local changes.")
 
@@ -91,7 +94,10 @@ def test_later_pulls_update_unedited_files_and_ask_before_replacing_edits(
     wordpress = blog()
     add_profile(store, "myblog", tmp_path)
     pull(store, wordpress)
-    first, second = tmp_path / "content/post-1.md", tmp_path / "content/post-2.md"
+    first, second = (
+        tmp_path / "content/imported/post-1.md",
+        tmp_path / "content/imported/post-2.md",
+    )
     first.write_text(first.read_text().replace("---\n\n", "layout: post\n---\n\n"))
     second.write_text(second.read_text().replace("Body 2", "My edit"))
     wordpress.post(1)["title"]["raw"] = "Renamed on WordPress"
@@ -101,8 +107,8 @@ def test_later_pulls_update_unedited_files_and_ask_before_replacing_edits(
 
     assert status == 0
     assert screen(output, errors) == [
-        "  ~ post-1.md",
-        "  ? post-2.md",
+        "  ~ imported/post-1.md",
+        "  ? imported/post-2.md",
         "Pull complete: 1 change; 1 skipped. "
         "Rerun with --yes to accept the skipped changes.",
     ]
@@ -113,7 +119,7 @@ def test_later_pulls_update_unedited_files_and_ask_before_replacing_edits(
     status, output, errors = pull(store, wordpress, "2", "--yes")
 
     assert screen(output, errors) == [
-        "  ~ post-2.md",
+        "  ~ imported/post-2.md",
         "Pull complete: 1 change.",
     ]
     assert "My edit" not in second.read_text()
@@ -128,8 +134,9 @@ def test_only_a_shared_slug_links_an_unlinked_file_to_a_remote_post(tmp_path, st
     status, output, errors = pull(store, wordpress)
 
     assert "  ? draft.md" in errors.splitlines()
-    names = sorted(p.name for p in (tmp_path / "content").glob("*.md"))
-    assert names == ["draft.md", "idea.md", "post-1.md"]
+    content = tmp_path / "content"
+    names = sorted(p.relative_to(content).as_posix() for p in content.rglob("*.md"))
+    assert names == ["draft.md", "idea.md", "imported/post-1.md"]
 
     status, output, errors = pull(store, wordpress, "2", stdin=Terminal("y\n"))
 
@@ -176,7 +183,7 @@ def test_linking_an_identical_file_still_downloads_the_images_it_shows(tmp_path,
     (tmp_path / ".wpsync/state.db").unlink()
     image = tmp_path / "content/images/2026/01/sunset-1024x768.jpg"
     image.unlink()
-    post = (tmp_path / "content/post-1.md").read_text()
+    post = (tmp_path / "content/imported/post-1.md").read_text()
 
     status, output, errors = pull(store, wordpress, "1")
 
@@ -185,7 +192,7 @@ def test_linking_an_identical_file_still_downloads_the_images_it_shows(tmp_path,
         "Pull complete: 1 change.",
     ]
     assert image.exists()
-    assert (tmp_path / "content/post-1.md").read_text() == post
+    assert (tmp_path / "content/imported/post-1.md").read_text() == post
     status, output, _ = invoke(["myblog", "diff", "1"], store, wordpress=wordpress)
     assert output.startswith("No local changes.")
 
@@ -211,7 +218,7 @@ def test_pull_never_deletes_or_restores_files(tmp_path, store):
     wordpress = blog()
     add_profile(store, "myblog", tmp_path)
     pull(store, wordpress)
-    (tmp_path / "content/post-1.md").unlink()
+    (tmp_path / "content/imported/post-1.md").unlink()
     wordpress.posts.remove(wordpress.post(2))
 
     status, output, _ = pull(store, wordpress)
@@ -219,12 +226,12 @@ def test_pull_never_deletes_or_restores_files(tmp_path, store):
     assert output.splitlines() == [
         "  Nothing to pull.",
         "Deleted locally, not restored:",
-        "  post-1.md",
+        "  imported/post-1.md",
         "Deleted on WordPress, local files kept:",
-        "  post-2.md",
+        "  imported/post-2.md",
     ]
-    assert not (tmp_path / "content/post-1.md").exists()
-    assert (tmp_path / "content/post-2.md").exists()
+    assert not (tmp_path / "content/imported/post-1.md").exists()
+    assert (tmp_path / "content/imported/post-2.md").exists()
 
 
 def two_image_blog():
@@ -253,13 +260,13 @@ def test_a_missing_image_is_reported_and_the_post_still_converts(
     assert status == 0
     assert screen(output, errors) == [
         "  + images/2026/01/sunset-1024x768.jpg",
-        "  + post-1.md",
-        "  + post-2.md",
+        "  + imported/post-1.md",
+        "  + imported/post-2.md",
         "Pull complete: 3 changes; 1 file missing from the blog.",
     ]
-    body = (tmp_path / "content/post-1.md").read_text()
+    body = (tmp_path / "content/imported/post-1.md").read_text()
     assert (
-        "![Sunset](images/2026/01/sunset-1024x768.jpg)\n\n![](images/2026/01/gone-1024x768.jpg)"
+        "![Sunset](../images/2026/01/sunset-1024x768.jpg)\n\n![](../images/2026/01/gone-1024x768.jpg)"
         in body
     )
     assert sorted(p.name for p in (tmp_path / "content/images/2026/01").iterdir()) == [
@@ -290,7 +297,7 @@ def test_a_missing_image_stays_counted_until_a_pull_restores_it_under_your_edits
     assert output == "  Nothing to pull; 1 file missing from the blog.\n"
     assert issues() == "1"
 
-    post = tmp_path / "content/post-1.md"
+    post = tmp_path / "content/imported/post-1.md"
     post.write_text(post.read_text() + "\nMy edit.\n")
     edited = post.read_text()
     del wordpress.broken_uploads[path]
@@ -338,7 +345,7 @@ def test_a_post_pull_cannot_place_fails_the_pull_but_not_the_others(tmp_path, st
 
     assert status == 1
     assert "same slug as several local files" in errors
-    assert (tmp_path / "content/post-2.md").exists()
+    assert (tmp_path / "content/imported/post-2.md").exists()
 
 
 def test_a_failed_download_stops_the_pull_without_leaving_part_of_a_post(
@@ -353,7 +360,7 @@ def test_a_failed_download_stops_the_pull_without_leaving_part_of_a_post(
 
     assert status != 0
     assert "HTTP 500" in errors
-    assert not (tmp_path / "content/post-1.md").exists()
+    assert not (tmp_path / "content/imported/post-1.md").exists()
     assert not (tmp_path / "content/images").exists()
 
     del wordpress.broken_uploads[path]
@@ -379,7 +386,7 @@ def test_images_kept_inside_html_are_not_downloaded(tmp_path, store):
 
     status, output, _ = pull(store, wordpress)
 
-    assert 'class="wp-image-7"' in (tmp_path / "content/post-2.md").read_text()
+    assert 'class="wp-image-7"' in (tmp_path / "content/imported/post-2.md").read_text()
     assert sorted(p.name for p in (tmp_path / "content/images/2026/01").iterdir()) == [
         "sunset-1024x768.jpg"
     ]

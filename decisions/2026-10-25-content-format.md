@@ -135,7 +135,14 @@ convention Markdown editors preview with, so the same image is
 `images/photo.png` from `content/` and `../images/photo.png` from a subfolder.
 The media table keeps each image's path relative to the profile folder, so one
 file has one row whatever post shows it; only the conversion between that path
-and a post's source depends on where the post lives. Keeping images inside
+and a post's source depends on where the post lives. A post that moves keeps
+showing the same images: its sources are rewritten from the previous place,
+which the sync state knows until the move is recorded, so the move is recorded
+only together with that rewrite, and only for the posts a command works on.
+A rewrite that is the only change keeps the post unedited. No single
+folder-anchored form was found that both Obsidian and VS Code preview
+(Obsidian resolves from the vault root, VS Code from the workspace with a
+leading `/`), so sources stay relative. Keeping images inside
 `content/` keeps everything a post displays beside it, and leaves the rest of
 the profile folder to the user.
 An image whose file is gone from the server (HTTP 404 or 410, or a response that

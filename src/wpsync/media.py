@@ -4,6 +4,7 @@ from __future__ import annotations
 
 import hashlib
 import posixpath
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path, PurePosixPath
 from typing import Protocol
@@ -143,6 +144,28 @@ def image_path(post: PurePosixPath, source: str) -> PurePosixPath | None:
         return None
     joined = posixpath.join(post.parent.as_posix(), unquote(source))
     return PurePosixPath(posixpath.normpath(joined))
+
+
+def moved_sources(
+    root: Path, previous: Sequence[PurePosixPath], path: PurePosixPath, body: str
+) -> dict[str, str]:
+    """New sources for the images a post lost by moving to path.
+
+    A source that still names a file is kept, such as an image moved along
+    with the post; one that named a file from a previous place, the latest
+    first, is rewritten to name that file from the new one.
+    """
+    moved = {}
+    for source in image_sources(body):
+        image = image_path(path, source)
+        if image is None or (root / image).is_file():
+            continue
+        for place in previous:
+            before = image_path(place, source)
+            if before is not None and (root / before).is_file():
+                moved[source] = posixpath.relpath(before, path.parent)
+                break
+    return moved
 
 
 def file_checksum(path: Path) -> str:
